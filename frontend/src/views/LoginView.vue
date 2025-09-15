@@ -37,70 +37,72 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'LoginView',
-  data() {
-    return {
-      token: '',
-      isLoading: false,
-      message: '',
-      messageType: ''
-    }
-  },
-  methods: {
-    async authenticate() {
-      if (!this.token.trim()) {
-        this.showMessage('Please enter a token', 'error')
-        return
-      }
-      
-      this.isLoading = true
-      this.message = ''
-      
-      try {
-        const response = await fetch('http://localhost:3000/auth/token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            token: this.token
-          })
-        })
-        
-        const data = await response.json()
-        
-        if (response.ok) {
-          this.showMessage('Authentication successful! Redirecting...', 'success')
-          this.$emit('authenticated')
-          
-          // Redirect to traffic view after a short delay
-          setTimeout(() => {
-            this.$router.push('/traffic')
-          }, 1500)
-        } else {
-          this.showMessage(data.error || 'Authentication failed', 'error')
-        }
-      } catch (error) {
-        console.error('Authentication error:', error)
-        this.showMessage('Network error. Please check if the backend server is running.', 'error')
-      } finally {
-        this.isLoading = false
-      }
-    },
-    
-    showMessage(text, type) {
-      this.message = text
-      this.messageType = type
-      
-      // Clear message after 5 seconds
-      setTimeout(() => {
-        this.message = ''
-      }, 5000)
-    }
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// Define emits
+const emit = defineEmits(['authenticated'])
+
+// Reactive state
+const token = ref('')
+const isLoading = ref(false)
+const message = ref('')
+const messageType = ref('')
+
+// Methods
+const authenticate = async () => {
+  if (!token.value.trim()) {
+    showMessage('Please enter a token', 'error')
+    return
   }
+  
+  isLoading.value = true
+  message.value = ''
+  
+  try {
+    const response = await fetch('http://localhost:3000/auth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        token: token.value
+      })
+    })
+    
+    const data = await response.json()
+    
+    if (response.ok) {
+      showMessage('Authentication successful! Redirecting...', 'success')
+      emit('authenticated')
+      
+      // Redirect to traffic view after a short delay
+      setTimeout(() => {
+        router.push('/traffic')
+      }, 1500)
+    } else {
+      showMessage(data.error || 'Authentication failed', 'error')
+    }
+  } catch (error) {
+    console.error('Authentication error:', error)
+    showMessage('Network error. Please check if the backend server is running.', 'error')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const showMessage = (text, type) => {
+  message.value = text
+  messageType.value = type
+  
+  // Clear message after 5 seconds
+  setTimeout(() => {
+    message.value = ''
+  }, 5000)
 }
 </script>
 

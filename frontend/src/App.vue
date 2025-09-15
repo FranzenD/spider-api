@@ -14,33 +14,33 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'App',
-  data() {
-    return {
-      isAuthenticated: false
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// Reactive state
+const isAuthenticated = ref(false)
+
+// Methods
+const handleAuthentication = () => {
+  isAuthenticated.value = true
+}
+
+const logout = async () => {
+  try {
+    const response = await fetch('http://localhost:3000/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      isAuthenticated.value = false
+      router.push('/')
     }
-  },
-  methods: {
-    handleAuthentication() {
-      this.isAuthenticated = true
-    },
-    async logout() {
-      try {
-        const response = await fetch('http://localhost:3000/auth/logout', {
-          method: 'POST',
-          credentials: 'include'
-        })
-        
-        if (response.ok) {
-          this.isAuthenticated = false
-          this.$router.push('/')
-        }
-      } catch (error) {
-        console.error('Logout failed:', error)
-      }
-    }
+  } catch (error) {
+    console.error('Logout failed:', error)
   }
 }
 </script>

@@ -50,92 +50,92 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'TrafficView',
-  data() {
-    return {
-      trafficData: null,
-      isLoading: false,
-      message: '',
-      messageType: '',
-    };
-  },
-  computed: {
-    departures() {
-      return this.trafficData ? this.trafficData.departures : [];
-    },
-  },
-  methods: {
-    async fetchTrafficData() {
-      this.isLoading = true;
-      this.message = '';
+<script setup>
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 
-      try {
-        const response = await fetch('http://localhost:3000/api/traffic', {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+const router = useRouter()
 
-        if (response.ok) {
-          this.trafficData = await response.json();
-          this.showMessage('Traffic data loaded successfully', 'success');
-        } else if (response.status === 401) {
-          this.showMessage(
-            'Authentication required. Please login first.',
-            'error'
-          );
-          // Redirect to login after a delay
-          setTimeout(() => {
-            this.$router.push('/');
-          }, 2000);
-        } else {
-          const errorData = await response.json();
-          this.showMessage(
-            errorData.error || 'Failed to fetch traffic data',
-            'error'
-          );
-        }
-      } catch (error) {
-        console.error('Fetch error:', error);
-        this.showMessage(
-          'Network error. Please check if the backend server is running.',
-          'error'
-        );
-      } finally {
-        this.isLoading = false;
-      }
-    },
+// Reactive state
+const trafficData = ref(null)
+const isLoading = ref(false)
+const message = ref('')
+const messageType = ref('')
 
-    formatTimestamp(timestamp) {
-      return new Date(timestamp).toLocaleTimeString('sv-SE', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-    },
+// Computed properties
+const departures = computed(() => {
+  return trafficData.value ? trafficData.value.departures : []
+})
 
-    showMessage(text, type) {
-      this.message = text;
-      this.messageType = type;
+// Methods
+const fetchTrafficData = async () => {
+  isLoading.value = true
+  message.value = ''
 
-      // Clear message after 5 seconds
+  try {
+    const response = await fetch('http://localhost:3000/api/traffic', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (response.ok) {
+      trafficData.value = await response.json()
+      showMessage('Traffic data loaded successfully', 'success')
+    } else if (response.status === 401) {
+      showMessage(
+        'Authentication required. Please login first.',
+        'error'
+      )
+      // Redirect to login after a delay
       setTimeout(() => {
-        this.message = '';
-      }, 5000);
-    },
-    showDepartureInMinutesFromNow(departureTime) {
-      const now = new Date();
-      const departure = new Date(departureTime);
-      const diffMs = departure - now;
-      const diffMins = Math.round(diffMs / 60000);
-      return diffMins > 0 ? `${diffMins} min` : 'Nu';
-    },
-  },
-};
+        router.push('/')
+      }, 2000)
+    } else {
+      const errorData = await response.json()
+      showMessage(
+        errorData.error || 'Failed to fetch traffic data',
+        'error'
+      )
+    }
+  } catch (error) {
+    console.error('Fetch error:', error)
+    showMessage(
+      'Network error. Please check if the backend server is running.',
+      'error'
+    )
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const formatTimestamp = (timestamp) => {
+  return new Date(timestamp).toLocaleTimeString('sv-SE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+const showMessage = (text, type) => {
+  message.value = text
+  messageType.value = type
+
+  // Clear message after 5 seconds
+  setTimeout(() => {
+    message.value = ''
+  }, 5000)
+}
+
+const showDepartureInMinutesFromNow = (departureTime) => {
+  const now = new Date()
+  const departure = new Date(departureTime)
+  const diffMs = departure - now
+  const diffMins = Math.round(diffMs / 60000)
+  return diffMins > 0 ? `${diffMins} min` : 'Nu'
+}
 </script>
 
 <style scoped>
