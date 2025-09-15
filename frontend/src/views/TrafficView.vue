@@ -22,34 +22,19 @@
         
         <div class="traffic-grid">
           <div
-            v-for="(location, index) in trafficData.data"
+            v-for="(departure, index) in departures"
             :key="index"
-            :class="['traffic-item', `congestion-${location.congestion}`]"
+            :class="['traffic-item']"
           >
             <div class="location">
-              <h4>{{ location.location }}</h4>
+              <h4>{{ formatTimestamp(departure.realtime) }}</h4>
+              <p>{{  departure.route.direction }}</p>
             </div>
-            <div class="metrics">
-              <div class="metric">
-                <span class="label">Speed:</span>
-                <span class="value">{{ location.speed }} mph</span>
-              </div>
-              <div class="metric">
-                <span class="label">Congestion:</span>
-                <span class="value">{{ location.congestion }}</span>
-              </div>
-              <div class="metric">
-                <span class="label">Incidents:</span>
-                <span class="value">{{ location.incidents }}</span>
-              </div>
-            </div>
+           
           </div>
         </div>
-        
-        <div class="data-footer">
-          <small>Source: {{ trafficData.source }}</small>
-        </div>
-      </div>
+      </div>       
+      
       
       <div v-else-if="!isLoading" class="no-data">
         <p>Click "Fetch Traffic Data" to load current traffic information</p>
@@ -67,6 +52,11 @@ export default {
       isLoading: false,
       message: '',
       messageType: ''
+    }
+  },
+  computed: {
+    departures() {
+      return this.trafficData ? this.trafficData.departures : []
     }
   },
   methods: {
@@ -105,7 +95,11 @@ export default {
     },
     
     formatTimestamp(timestamp) {
-      return new Date(timestamp).toLocaleString()
+      return new Date(timestamp).toLocaleTimeString('sv-SE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
     },
     
     showMessage(text, type) {

@@ -86,8 +86,25 @@ app.post('/auth/token', (req, res) => {
 });
 
 // GET /api/traffic - Get traffic data from third-party API
-app.get('/api/traffic', verifyJWT, async (req, res) => {
+app.get('/api/traffic', /* verifyJWT, */ async (req, res) => {
   try {
+
+    const apiKey = process.env.API_KEY;
+    const areaId = '740065516';
+
+    const url = `https://realtime-api.trafiklab.se/v1/departures/${areaId}?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const trafficData = await response.json();
+
+    res.json(trafficData);
+
     // Mock third-party API call
     // Replace with actual API endpoint and logic
     const mockTrafficData = {
@@ -134,7 +151,7 @@ app.get('/api/traffic', verifyJWT, async (req, res) => {
     */
     
     // For now, return mock data
-    res.json(mockTrafficData);
+    //res.json(mockTrafficData);
     
   } catch (error) {
     console.error('Error fetching traffic data:', error);
