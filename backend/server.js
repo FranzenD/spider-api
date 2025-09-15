@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -30,7 +29,7 @@ const VALID_TOKENS = [
 // Middleware to verify JWT from cookie
 const verifyJWT = (req, res, next) => {
   const token = req.cookies.authToken;
-  
+
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
@@ -61,7 +60,7 @@ app.post('/auth/token', (req, res) => {
 
   // Create JWT
   const jwtToken = jwt.sign(
-    { 
+    {
       userId: 'user123', // Mock user ID
       token: token,
       timestamp: Date.now()
@@ -78,8 +77,8 @@ app.post('/auth/token', (req, res) => {
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   });
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Authentication successful',
     user: { id: 'user123' }
   });
@@ -105,59 +104,11 @@ app.get('/api/traffic', /* verifyJWT, */ async (req, res) => {
 
     res.json(trafficData);
 
-    // Mock third-party API call
-    // Replace with actual API endpoint and logic
-    const mockTrafficData = {
-      timestamp: new Date().toISOString(),
-      data: [
-        {
-          location: 'Highway 101 North',
-          speed: 45,
-          congestion: 'moderate',
-          incidents: 0
-        },
-        {
-          location: 'Highway 101 South', 
-          speed: 35,
-          congestion: 'heavy',
-          incidents: 1
-        },
-        {
-          location: 'I-280 North',
-          speed: 65,
-          congestion: 'light',
-          incidents: 0
-        },
-        {
-          location: 'I-280 South',
-          speed: 55,
-          congestion: 'moderate',
-          incidents: 0
-        }
-      ],
-      source: 'Third Party Traffic API'
-    };
-
-    // Uncomment and modify this section when you have a real API
-    /*
-    const response = await axios.get('https://your-third-party-api.com/traffic', {
-      headers: {
-        'Authorization': `Bearer ${process.env.THIRD_PARTY_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    res.json(response.data);
-    */
-    
-    // For now, return mock data
-    //res.json(mockTrafficData);
-    
   } catch (error) {
     console.error('Error fetching traffic data:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch traffic data',
-      message: error.message 
+      message: error.message
     });
   }
 });

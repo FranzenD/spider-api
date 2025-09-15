@@ -2,24 +2,32 @@
   <div class="traffic-container">
     <div class="traffic-card">
       <h2>Traffic Data Dashboard</h2>
-      <p class="description">Real-time traffic information from third-party API</p>
-      
+      <p class="description">
+        Real-time traffic information from third-party API
+      </p>
+
       <div class="actions">
-        <button @click="fetchTrafficData" :disabled="isLoading" class="fetch-btn">
+        <button
+          @click="fetchTrafficData"
+          :disabled="isLoading"
+          class="fetch-btn"
+        >
           {{ isLoading ? 'Loading...' : 'Fetch Traffic Data' }}
         </button>
       </div>
-      
+
       <div v-if="message" :class="['message', messageType]">
         {{ message }}
       </div>
-      
+
       <div v-if="trafficData" class="traffic-data">
         <div class="data-header">
           <h3>Traffic Information</h3>
-          <span class="timestamp">{{ formatTimestamp(trafficData.timestamp) }}</span>
+          <span class="timestamp">{{
+            formatTimestamp(trafficData.timestamp)
+          }}</span>
         </div>
-        
+
         <div class="traffic-grid">
           <div
             v-for="(departure, index) in departures"
@@ -28,14 +36,13 @@
           >
             <div class="location">
               <h4>{{ formatTimestamp(departure.realtime) }}</h4>
-              <p>{{  departure.route.direction }}</p>
+              <p>{{ showDepartureInMinutesFromNow(departure.realtime) }}</p>
+              <p>{{ departure.route.direction }}</p>
             </div>
-           
           </div>
         </div>
-      </div>       
-      
-      
+      </div>
+
       <div v-else-if="!isLoading" class="no-data">
         <p>Click "Fetch Traffic Data" to load current traffic information</p>
       </div>
@@ -51,68 +58,84 @@ export default {
       trafficData: null,
       isLoading: false,
       message: '',
-      messageType: ''
-    }
+      messageType: '',
+    };
   },
   computed: {
     departures() {
-      return this.trafficData ? this.trafficData.departures : []
-    }
+      return this.trafficData ? this.trafficData.departures : [];
+    },
   },
   methods: {
     async fetchTrafficData() {
-      this.isLoading = true
-      this.message = ''
-      
+      this.isLoading = true;
+      this.message = '';
+
       try {
         const response = await fetch('http://localhost:3000/api/traffic', {
           method: 'GET',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-        
+            'Content-Type': 'application/json',
+          },
+        });
+
         if (response.ok) {
-          this.trafficData = await response.json()
-          this.showMessage('Traffic data loaded successfully', 'success')
+          this.trafficData = await response.json();
+          this.showMessage('Traffic data loaded successfully', 'success');
         } else if (response.status === 401) {
-          this.showMessage('Authentication required. Please login first.', 'error')
+          this.showMessage(
+            'Authentication required. Please login first.',
+            'error'
+          );
           // Redirect to login after a delay
           setTimeout(() => {
-            this.$router.push('/')
-          }, 2000)
+            this.$router.push('/');
+          }, 2000);
         } else {
-          const errorData = await response.json()
-          this.showMessage(errorData.error || 'Failed to fetch traffic data', 'error')
+          const errorData = await response.json();
+          this.showMessage(
+            errorData.error || 'Failed to fetch traffic data',
+            'error'
+          );
         }
       } catch (error) {
-        console.error('Fetch error:', error)
-        this.showMessage('Network error. Please check if the backend server is running.', 'error')
+        console.error('Fetch error:', error);
+        this.showMessage(
+          'Network error. Please check if the backend server is running.',
+          'error'
+        );
       } finally {
-        this.isLoading = false
+        this.isLoading = false;
       }
     },
-    
+
     formatTimestamp(timestamp) {
       return new Date(timestamp).toLocaleTimeString('sv-SE', {
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false
-      })
+        hour12: false,
+      });
     },
-    
+
     showMessage(text, type) {
-      this.message = text
-      this.messageType = type
-      
+      this.message = text;
+      this.messageType = type;
+
       // Clear message after 5 seconds
       setTimeout(() => {
-        this.message = ''
-      }, 5000)
-    }
-  }
-}
+        this.message = '';
+      }, 5000);
+    },
+    showDepartureInMinutesFromNow(departureTime) {
+      const now = new Date();
+      const departure = new Date(departureTime);
+      const diffMs = departure - now;
+      const diffMins = Math.round(diffMs / 60000);
+      return diffMins > 0 ? `${diffMins} min` : 'Nu';
+    },
+  },
+};
 </script>
 
 <style scoped>
