@@ -22,8 +22,8 @@
 
       <div v-if="trafficData" class="traffic-data">
         <div class="data-header">
-          <h3>Traffic Information</h3>
-          <span class="timestamp">{{
+          <h3>Spindelvägen</h3>
+          <span class="timestamp">Uppdaterad: {{
             formatTimestamp(trafficData.timestamp)
           }}</span>
         </div>
@@ -145,6 +145,7 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   align-items: flex-start;
   min-height: 60vh;
   padding: 1rem;
+  min-width: 60%;
 }
 
 .traffic-card {
@@ -152,7 +153,7 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  max-width: 800px;
+  max-width: 1200px;
   width: 100%;
 }
 
@@ -237,8 +238,9 @@ const showDepartureInMinutesFromNow = (departureTime) => {
 }
 
 .traffic-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  display: flex;
+  flex-direction: column;
+  /* grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); */
   gap: 1rem;
   margin-bottom: 2rem;
 }
