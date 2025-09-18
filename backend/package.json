@@ -5,7 +5,16 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "container:build": "podman build -t spider-api-backend .",
+    "container:build:docker": "docker build -t spider-api-backend .",
+    "container:run": "podman run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend",
+    "container:run:docker": "docker run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend",
+    "container:stop": "podman stop spider-api || true",
+    "container:remove": "podman rm spider-api || true",
+    "container:logs": "podman logs spider-api",
+    "container:restart": "npm run container:stop && npm run container:remove && npm run container:build && npm run container:run",
+    "container:dev": "podman run -d --name spider-api-dev -p 3005:3005 --env-file .env -v $(pwd):/app:Z -v /app/node_modules spider-api-backend"
   },
   "keywords": ["express", "api", "traffic", "authentication"],
   "author": "",

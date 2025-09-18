@@ -73,7 +73,7 @@ const fetchTrafficData = async () => {
   message.value = ''
 
   try {
-    const response = await fetch('http://localhost:3000/api/traffic', {
+    const response = await fetch('http://localhost:3005/api/traffic', {
       method: 'GET',
       credentials: 'include',
       headers: {

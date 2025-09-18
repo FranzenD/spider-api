@@ -9,6 +9,8 @@ spider-api/
 ├── backend/
 │   ├── package.json
 │   ├── server.js
+│   ├── Dockerfile
+│   ├── .dockerignore
 │   └── .env
 ├── frontend/
 │   ├── package.json
@@ -20,6 +22,7 @@ spider-api/
 │       └── views/
 │           ├── LoginView.vue
 │           └── TrafficView.vue
+├── docker-compose.yml
 └── README.md
 ```
 
@@ -38,12 +41,14 @@ spider-api/
 - **Login View**: Token authentication interface
 - **Traffic View**: Traffic data dashboard with real-time updates
 - Vue Router for navigation
-- Responsive design
-- Error handling and user feedback
+- Composition API with `<script setup>`
+- Responsive design and error handling
 
 ## Quick Start
 
-### 1. Backend Setup
+### Option 1: Local Development
+
+#### 1. Backend Setup
 
 ```bash
 cd backend
@@ -53,7 +58,7 @@ npm start
 
 The backend will run on `http://localhost:3000`
 
-### 2. Frontend Setup
+#### 2. Frontend Setup
 
 ```bash
 cd frontend  
@@ -62,6 +67,103 @@ npm run dev
 ```
 
 The frontend will run on `http://localhost:5173`
+
+### Option 2: Docker/Podman Container
+
+#### Prerequisites
+- Docker or Podman installed
+- `.env` file configured in backend directory
+
+#### Using Docker
+
+```bash
+# Simple start with docker-compose (recommended)
+docker-compose up --build
+
+# Or manually build and run
+cd backend
+docker build -t spider-api-backend .
+docker run -d \
+  --name spider-api \
+  -p 3005:3005 \
+  --env-file .env \
+  spider-api-backend
+
+# Check container status
+docker ps
+
+# View logs
+docker logs spider-api
+
+# Stop and remove container
+docker stop spider-api
+docker rm spider-api
+```
+
+#### Using Podman
+
+```bash
+# Build the image
+cd backend
+podman build -t spider-api-backend .
+
+# Run the container
+podman run -d \
+  --name spider-api \
+  -p 3005:3005 \
+  --env-file .env \
+  spider-api-backend
+
+# Check container status
+podman ps
+
+# View logs
+podman logs spider-api
+
+# Stop and remove container
+podman stop spider-api
+podman rm spider-api
+```
+
+#### Container Health Check
+
+```bash
+# Check container health (Docker)
+docker inspect --format='{{.State.Health.Status}}' spider-api
+
+# Check container health (Podman)
+podman inspect --format='{{.State.Health.Status}}' spider-api
+
+# Manual health check
+curl http://localhost:3000/health
+```
+
+#### Development with Container
+
+For development with live code reloading:
+
+```bash
+# Using docker-compose (easiest - already configured)
+docker-compose up --build
+
+# Or manually with volume mounting (Docker)
+docker run -d \
+  --name spider-api-dev \
+  -p 3005:3005 \
+  --env-file .env \
+  -v $(pwd):/app \
+  -v /app/node_modules \
+  spider-api-backend
+
+# Or manually with volume mounting (Podman)
+podman run -d \
+  --name spider-api-dev \
+  -p 3005:3005 \
+  --env-file .env \
+  -v $(pwd):/app:Z \
+  -v /app/node_modules \
+  spider-api-backend
+```
 
 ## Authentication
 
@@ -94,8 +196,16 @@ Create a `.env` file in the backend directory:
 
 ```env
 PORT=3000
-THIRD_PARTY_API_KEY=your_api_key_here
+API_KEY=your_trafiklab_api_key_here
 JWT_SECRET=your_jwt_secret_here_should_be_long_and_secure
+NODE_ENV=development
+```
+
+### Required Environment Variables
+- `API_KEY`: Your Trafiklab API key for traffic data
+- `JWT_SECRET`: Secret key for JWT signing (min 32 characters recommended)
+- `PORT`: Server port (default: 3000)
+- `NODE_ENV`: Environment (development/production)
 ```
 
 ## Third-Party API Integration
@@ -121,13 +231,41 @@ To integrate with a real traffic API, modify the `/api/traffic` endpoint in `ser
 - Secure cookie flag in production
 - Token expiration (24 hours)
 - CORS configuration with specific origin allowlist
+- Container runs as non-root user
+- Health check endpoint for monitoring
 
 ## Testing
 
-1. Start both backend and frontend servers
+1. Start backend and frontend servers (locally or with containers)
 2. Navigate to `http://localhost:5173`
 3. Use any demo token to authenticate
 4. Click "Fetch Traffic Data" to test the protected endpoint
+
+### Testing with Container
+
+```bash
+# Start backend with docker-compose
+docker-compose up -d
+
+# Or start backend container manually
+cd backend && docker run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend
+
+# Start frontend locally
+cd frontend && npm run dev
+
+# Test health endpoint
+curl http://localhost:3000/health
+```
+
+## Container Best Practices
+
+- ✅ **Non-root user** for security (nodejs:nodejs)
+- ✅ **Multi-layered caching** for faster builds
+- ✅ **Health check implementation** with proper timeouts
+- ✅ **.dockerignore** for smaller build context
+- ✅ **Alpine Linux** for minimal attack surface
+- ✅ **Production-only dependencies** in container
+- ✅ **Volume mounting** for development workflow
 
 ## Production Deployment
 
@@ -136,7 +274,12 @@ Before deploying to production:
 1. Update CORS origin to your production domain
 2. Set `NODE_ENV=production` for secure cookies
 3. Use environment variables for all secrets
-4. Implement proper token validation logic
+4. Use a proper container orchestration solution (Kubernetes, Docker Swarm)
 5. Add input validation and sanitization
+6. Configure HTTPS/TLS termination
+7. Add rate limiting and other security middleware
+8. Use a production-ready database for token validation
+9. Implement proper logging and monitoring
+10. Use multi-stage Docker builds for smaller production images
 6. Configure HTTPS
 7. Add rate limiting and other security middleware
