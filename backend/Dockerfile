@@ -5,12 +5,19 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (including dev dependencies for build)
+RUN npm ci
 
-# Copy application code
-COPY . .
+# Copy source code
+COPY src/ ./src/
+
+# Build TypeScript
+RUN npm run build
+
+# Remove dev dependencies for smaller production image
+RUN npm ci --only=production && npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
@@ -28,4 +35,4 @@ EXPOSE 3005
 #   CMD node -e "require('http').get('http://localhost:3005/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Start the application
-CMD ["node", "server.js"]
+CMD ["node", "dist/server.js"]

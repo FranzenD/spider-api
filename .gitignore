@@ -110,6 +110,9 @@ logs
 dist/
 build/
 
+# TypeScript
+*.tsbuildinfo
+
 # Temporary files
 tmp/
 temp/
