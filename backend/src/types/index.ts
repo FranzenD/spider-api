@@ -11,9 +11,10 @@ export interface CredentialMap {
 
 export interface TrafficDeparture {
   realtime: string;
+  nextDepartureIn: string;
   route: {
     direction: string;
-    line: string;
+    designation: string;
   };
   destination: string;
   expected?: string;
@@ -21,7 +22,6 @@ export interface TrafficDeparture {
 
 export interface TrafficApiResponse {
   departures: TrafficDeparture[];
-  timestamp: string;
   meta?: {
     requested_by?: string;
     auth_method?: string;
@@ -29,7 +29,16 @@ export interface TrafficApiResponse {
   };
 }
 
-export interface StandardApiResponse<T = any> {
+export interface SingleDepartureResponse {
+  departure: TrafficDeparture;
+  meta?: {
+    requested_by?: string;
+    auth_method?: string;
+    timestamp?: string;
+  };
+}
+
+export interface StandardApiResponse<T = unknown> {
   success: boolean;
   message?: string;
   data?: T;

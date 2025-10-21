@@ -1,15 +1,20 @@
 {
   "name": "spider-api-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Backend API for Spider Traffic Application",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon --exec tsx src/server.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "container:build": "podman build -t spider-api-backend .",
     "container:build:docker": "docker build -t spider-api-backend .",
     "container:run": "podman run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend",
@@ -26,7 +31,7 @@
     "traffic",
     "authentication"
   ],
-  "author": "",
+  "author": "Daniel Franzén",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.5.0",
@@ -34,16 +39,29 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "node-fetch": "3.3.2"
   },
   "devDependencies": {
+    "@eslint/js": "9.38.0",
     "@types/cookie-parser": "1.4.9",
     "@types/cors": "2.8.19",
+    "@types/eslint": "9.6.1",
+    "@types/eslint__js": "8.42.3",
     "@types/express": "5.0.3",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "24.8.0",
+    "@types/node-fetch": "2.6.13",
+    "@typescript-eslint/eslint-plugin": "8.46.2",
+    "@typescript-eslint/parser": "8.46.2",
+    "eslint": "9.38.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.4",
+    "jiti": "2.6.1",
     "nodemon": "3.1.10",
+    "prettier": "3.6.2",
     "ts-node": "10.9.2",
+    "tsx": "4.20.6",
     "typescript": "5.9.3"
   }
 }
