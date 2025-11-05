@@ -7,8 +7,17 @@ A full-stack web application for retrieving traffic data with JWT authentication
 ```
 spider-api/
 ├── backend/
+│   ├── src/
+│   │   ├── server.ts          # Main Express application
+│   │   ├── types/
+│   │   │   └── index.ts       # TypeScript type definitions
+│   │   └── utils/
+│   │       └── utils.ts       # Helper functions
+│   ├── dist/                  # Compiled JavaScript output
 │   ├── package.json
-│   ├── server.js
+│   ├── tsconfig.json          # TypeScript configuration
+│   ├── eslint.config.ts       # ESLint configuration
+│   ├── .prettierrc            # Prettier configuration
 │   ├── Dockerfile
 │   ├── .dockerignore
 │   └── .env
@@ -28,16 +37,20 @@ spider-api/
 
 ## Features
 
-### Backend (Node.js + Express)
+### Backend (Node.js + Express + TypeScript)
+
+- **POST /auth/token/basic**: Basic Auth to JWT conversion (requires Basic Auth header)
 - **POST /auth/token**: Token-based authentication with JWT
-- **GET /api/traffic**: Protected endpoint for traffic data
+- **GET /api/traffic/:direction?**: Protected endpoint for traffic data with optional direction parameter
 - **POST /auth/logout**: Clear authentication cookie
 - **GET /health**: Health check endpoint
 - Secure cookie-based JWT storage (HttpOnly, Secure, SameSite=Strict)
 - CORS configuration with credentials support
-- Mock traffic data (ready for third-party API integration)
+- Real-time traffic data from Trafiklab API
+- TypeScript for type safety and better developer experience
 
 ### Frontend (Vue 3)
+
 - **Login View**: Token authentication interface
 - **Traffic View**: Traffic data dashboard with real-time updates
 - Vue Router for navigation
@@ -53,15 +66,21 @@ spider-api/
 ```bash
 cd backend
 npm install
+
+# Development mode (with hot reload)
+npm run dev
+
+# Or build and run production mode
+npm run build
 npm start
 ```
 
-The backend will run on `http://localhost:3000`
+The backend will run on `http://localhost:3005` (development) or configured PORT
 
 #### 2. Frontend Setup
 
 ```bash
-cd frontend  
+cd frontend
 npm install
 npm run dev
 ```
@@ -71,6 +90,7 @@ The frontend will run on `http://localhost:5173`
 ### Option 2: Docker/Podman Container
 
 #### Prerequisites
+
 - Docker or Podman installed
 - `.env` file configured in backend directory
 
@@ -167,27 +187,56 @@ podman run -d \
 
 ## Authentication
 
-The application uses demo tokens for authentication:
+The application supports two authentication methods:
+
+### Method 1: Basic Authentication
+
+Valid credentials (username:password):
+
+- `api-client:secret-api-key-123`
+- `mobile-app:mobile-secret-456`
+- `web-app:web-secret-789`
+
+### Method 2: Demo Tokens
+
 - `demo-token-123`
-- `test-token-456` 
+- `test-token-456`
 - `poc-token-789`
 
 ### Authentication Flow
-1. User enters a token in the login form
-2. Backend validates the token (currently hardcoded)
+
+**Basic Auth Flow:**
+
+1. Client sends Basic Auth credentials (Base64 encoded username:password)
+2. Backend validates credentials against hardcoded credential map
+3. If valid, backend issues a JWT and sets it as an HttpOnly cookie
+4. Frontend can access protected endpoints using the cookie
+
+**Token Auth Flow:**
+
+1. User enters a demo token in the login form
+2. Backend validates the token against hardcoded token list
 3. If valid, backend issues a JWT and sets it as an HttpOnly cookie
 4. Frontend can access protected endpoints using the cookie
 
 ## API Endpoints
 
 ### Authentication
-- `POST /auth/token` - Authenticate with token
+
+- `POST /auth/token/basic` - Authenticate with Basic Auth (returns JWT)
+  - Requires `Authorization: Basic <base64(username:password)>` header
+- `POST /auth/token` - Authenticate with demo token (returns JWT)
+  - Request body: `{ "token": "demo-token-123" }`
 - `POST /auth/logout` - Clear authentication cookie
 
 ### Traffic Data
-- `GET /api/traffic` - Get current traffic data (requires authentication)
+
+- `GET /api/traffic` - Get all current traffic data (requires authentication)
+- `GET /api/traffic/:direction` - Get traffic data filtered by direction (requires authentication)
+  - Example: `GET /api/traffic/Stockholm` returns only departures heading to Stockholm
 
 ### Utility
+
 - `GET /health` - Health check
 
 ## Environment Variables
@@ -202,27 +251,53 @@ NODE_ENV=development
 ```
 
 ### Required Environment Variables
+
 - `API_KEY`: Your Trafiklab API key for traffic data
 - `JWT_SECRET`: Secret key for JWT signing (min 32 characters recommended)
 - `PORT`: Server port (default: 3000)
 - `NODE_ENV`: Environment (development/production)
-```
+
+````
 
 ## Third-Party API Integration
 
-To integrate with a real traffic API, modify the `/api/traffic` endpoint in `server.js`:
+The application is integrated with **Trafiklab's Real-time API** for live Swedish public transport data.
 
-1. Uncomment the axios request code
-2. Replace the mock API URL with your actual endpoint  
-3. Configure the API key in your `.env` file
-4. Update request headers as needed
+### Current Implementation
+- Real-time departure data from Trafiklab API
+- Area ID: `740065516` (configurable)
+- Supports filtering by direction/destination
+- Automatic error handling and fallback responses
+
+### Configuration
+1. Get your free API key from [Trafiklab](https://www.trafiklab.se/)
+2. Add the API key to your `.env` file
+3. Optionally modify the `areaId` in `server.ts` for different stations
 
 ## Development Notes
 
+- Backend built with **TypeScript** for type safety
+- Uses **tsx** for development with hot reload
+- ESLint + Prettier configured for code quality
 - The frontend is configured for development only (not production-ready)
 - All fetch requests include `credentials: 'include'` for cookie support
-- CORS is configured to allow requests from `http://localhost:5173`
+- CORS is configured to allow requests from `http://localhost:5173` and `http://localhost:5174`
 - JWT cookies are set with security flags appropriate for the environment
+
+## Technology Stack
+
+### Backend
+- Node.js 20+
+- Express 4.x
+- TypeScript 5.x
+- JWT (jsonwebtoken)
+- node-fetch for API calls
+- ESLint + Prettier for code quality
+
+### Frontend
+- Vue 3 with Composition API
+- Vue Router
+- Vite build tool
 
 ## Security Features
 
@@ -238,8 +313,37 @@ To integrate with a real traffic API, modify the `/api/traffic` endpoint in `ser
 
 1. Start backend and frontend servers (locally or with containers)
 2. Navigate to `http://localhost:5173`
-3. Use any demo token to authenticate
+3. Authenticate using either:
+   - **Basic Auth**: Use credentials like `api-client:secret-api-key-123`
+   - **Demo Token**: Use tokens like `demo-token-123`
 4. Click "Fetch Traffic Data" to test the protected endpoint
+5. Test direction filtering: `GET /api/traffic/Stockholm`
+
+### Testing with cURL
+
+```bash
+# Test health endpoint
+curl http://localhost:3005/health
+
+# Test Basic Auth
+curl -X POST http://localhost:3005/auth/token/basic \
+  -H "Authorization: Basic $(echo -n 'api-client:secret-api-key-123' | base64)" \
+  -c cookies.txt
+
+# Test token auth
+curl -X POST http://localhost:3005/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"token":"demo-token-123"}' \
+  -c cookies.txt
+
+# Test traffic endpoint (requires cookie from auth)
+curl http://localhost:3005/api/traffic \
+  -b cookies.txt
+
+# Test traffic endpoint with direction filter
+curl http://localhost:3005/api/traffic/Stockholm \
+  -b cookies.txt
+````
 
 ### Testing with Container
 
@@ -281,5 +385,5 @@ Before deploying to production:
 8. Use a production-ready database for token validation
 9. Implement proper logging and monitoring
 10. Use multi-stage Docker builds for smaller production images
-6. Configure HTTPS
-7. Add rate limiting and other security middleware
+11. Configure HTTPS
+12. Add rate limiting and other security middleware
