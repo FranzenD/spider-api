@@ -1,5 +1,11 @@
 import type { SingleDepartureResponse, TrafficDeparture } from '../types/index.ts';
 
+/**
+ * Filters departures by direction.
+ * @param departures - Array of TrafficDeparture objects.
+ * @param direction - Optional direction to filter by.
+ * @returns Filtered array of TrafficDeparture objects.
+ */
 export const getDeparturesByDirection = (
   departures: TrafficDeparture[],
   direction?: string
@@ -13,6 +19,11 @@ export const getDeparturesByDirection = (
   );
 };
 
+/**
+ * Creates a response for a single departure.
+ * @param departure - TrafficDeparture object.
+ * @returns SingleDepartureResponse object.
+ */
 export const createSingleDepartureResponse = (
   departure: TrafficDeparture
 ): SingleDepartureResponse => {
@@ -27,6 +38,11 @@ export const createSingleDepartureResponse = (
   };
 };
 
+/**
+ * Calculates the time in minutes from now to a given departure time.
+ * @param departureTime - Departure time as string, number, or Date object.
+ * @returns Time in minutes or 'Nu' if departure is now.
+ */
 export const showDepartureInMinutesFromNow = (departureTime: string | number | Date) => {
   const now = new Date();
   const departure = new Date(departureTime);

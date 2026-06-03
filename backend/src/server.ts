@@ -219,7 +219,13 @@ app.get(
         },
       });
       if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
+        const errorMessage = `API request failed with status ${response.status}: ${response.statusText}`;
+        console.error('Traffic API error:', errorMessage);
+        res.status(500).json({
+          error: 'Failed to fetch traffic data',
+          details: errorMessage,
+        });
+        return;
       }
 
       const trafficData = (await response.json()) as TrafficApiResponse;
