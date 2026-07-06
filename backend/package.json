@@ -6,7 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon --exec tsx src/server.ts",
+    "dev": "NODE_ENV=development nodemon --exec tsx src/server.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
@@ -40,7 +40,8 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "node-fetch": "3.3.2"
+    "node-fetch": "3.3.2",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@eslint/js": "9.38.0",
