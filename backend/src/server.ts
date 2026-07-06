@@ -331,4 +331,14 @@ app.listen(PORT, (): void => {
   logger.info(`  GET /health - Health check`);
 });
 
+// Graceful shutdown
+const shutdown = () => {
+  logger.info('Server is shutting down...');
+  // Här kan man lägga till stängning av DB-anslutningar etc.
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 export default app;
