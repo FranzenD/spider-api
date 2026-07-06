@@ -6,7 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon --exec tsx src/server.ts",
+    "dev": "NODE_ENV=development nodemon --exec tsx src/server.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
@@ -17,13 +17,13 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "container:build": "podman build -t spider-api-backend .",
     "container:build:docker": "docker build -t spider-api-backend .",
-    "container:run": "podman run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend",
-    "container:run:docker": "docker run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend",
+    "container:run": "podman run -d --name spider-api -p 3001:3001 --env-file .env spider-api-backend",
+    "container:run:docker": "docker run -d --name spider-api -p 3001:3001 --env-file .env spider-api-backend",
     "container:stop": "podman stop spider-api || true",
     "container:remove": "podman rm spider-api || true",
     "container:logs": "podman logs spider-api",
     "container:restart": "npm run container:stop && npm run container:remove && npm run container:build && npm run container:run",
-    "container:dev": "podman run -d --name spider-api-dev -p 3005:3005 --env-file .env -v $(pwd):/app:Z -v /app/node_modules spider-api-backend"
+    "container:dev": "podman run -d --name spider-api-dev -p 3001:3001 --env-file .env -v $(pwd):/app:Z -v /app/node_modules spider-api-backend"
   },
   "keywords": [
     "express",
@@ -40,7 +40,9 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "node-fetch": "3.3.2"
+    "node-fetch": "3.3.2",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3"
   },
   "devDependencies": {
     "@eslint/js": "9.38.0",
@@ -61,7 +63,7 @@
     "nodemon": "3.1.10",
     "prettier": "3.6.2",
     "ts-node": "10.9.2",
-    "tsx": "4.20.6",
+    "tsx": "^4.20.6",
     "typescript": "5.9.3"
   }
 }

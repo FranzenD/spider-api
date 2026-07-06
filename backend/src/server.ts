@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
+import pino from 'pino';
 import {
   AuthenticatedUser,
   CredentialMap,
@@ -18,8 +19,23 @@ import {
 
 dotenv.config();
 
+const logger = pino({
+  transport:
+    process.env.NODE_ENV === 'development'
+      ? {
+          targets: [
+            { target: 'pino/file', options: { destination: 'app.log' } },
+            { target: 'pino-pretty', options: { colorize: true } },
+          ],
+        }
+      : {
+          target: 'pino/file',
+          options: { destination: 'app.log' },
+        },
+});
+
 const app = express();
-const PORT: number = parseInt(process.env.PORT || '3000', 10);
+const PORT: number = parseInt(process.env.PORT || '3001', 10);
 
 // Middleware setup
 app.use(express.json());
@@ -76,7 +92,7 @@ const basicAuth = (req: Request, res: Response, next: NextFunction): void => {
     };
     next();
   } catch (error: unknown) {
-    console.error('Basic auth error:', error);
+    logger.error({ err: error }, 'Basic auth error');
     res.status(401).json({
       error: 'Invalid authorization header format',
       expected: 'Authorization: Basic <base64(username:password)>',
@@ -212,15 +228,21 @@ app.get(
       const areaId: string = '740065516';
       const url: string = `https://realtime-api.trafiklab.se/v1/departures/${areaId}?key=${apiKey}`;
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         const errorMessage = `API request failed with status ${response.status}: ${response.statusText}`;
-        console.error('Traffic API error:', errorMessage);
+        logger.error({ errorMessage }, 'Traffic API error');
         res.status(500).json({
           error: 'Failed to fetch traffic data',
           details: errorMessage,
@@ -259,7 +281,15 @@ app.get(
 
       res.json(enhancedData);
     } catch (error) {
-      console.error('Error fetching traffic data:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.error('Traffic API request timed out');
+        res.status(504).json({
+          error: 'Gateway Timeout',
+          message: 'Traffic API took too long to respond',
+        });
+        return;
+      }
+      logger.error({ err: error }, 'Error fetching traffic data');
       res.status(500).json({
         error: 'Failed to fetch traffic data',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -292,13 +322,13 @@ app.get('/health', (req: Request, res: Response): void => {
 });
 
 app.listen(PORT, (): void => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`CORS enabled for: http://localhost:5173 and http://localhost:5174`);
-  console.log(`Available endpoints:`);
-  console.log(`  POST /auth/token/basic - Get JWT with Basic Auth`);
-  console.log(`  POST /auth/token - Get JWT with demo token`);
-  console.log(`  GET /api/traffic - Get traffic data`);
-  console.log(`  GET /health - Health check`);
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`CORS enabled for: http://localhost:5173 and http://localhost:5174`);
+  logger.info(`Available endpoints:`);
+  logger.info(`  POST /auth/token/basic - Get JWT with Basic Auth`);
+  logger.info(`  POST /auth/token - Get JWT with demo token`);
+  logger.info(`  GET /api/traffic - Get traffic data`);
+  logger.info(`  GET /health - Health check`);
 });
 
 export default app;
