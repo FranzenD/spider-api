@@ -228,12 +228,18 @@ app.get(
       const areaId: string = '740065516';
       const url: string = `https://realtime-api.trafiklab.se/v1/departures/${areaId}?key=${apiKey}`;
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         const errorMessage = `API request failed with status ${response.status}: ${response.statusText}`;
         logger.error({ errorMessage }, 'Traffic API error');
@@ -275,6 +281,14 @@ app.get(
 
       res.json(enhancedData);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.error('Traffic API request timed out');
+        res.status(504).json({
+          error: 'Gateway Timeout',
+          message: 'Traffic API took too long to respond',
+        });
+        return;
+      }
       logger.error({ err: error }, 'Error fetching traffic data');
       res.status(500).json({
         error: 'Failed to fetch traffic data',
