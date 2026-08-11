@@ -20,6 +20,7 @@ import {
 dotenv.config();
 
 const logger = pino({
+  timestamp: () => `,"time":"${new Date().toISOString().replace('T', ' ').substring(0, 16)}`,
   transport:
     process.env.NODE_ENV === 'development'
       ? {
