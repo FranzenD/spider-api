@@ -20,6 +20,7 @@ import {
 dotenv.config();
 
 const logger = pino({
+  timestamp: () => `,"time":"${new Date().toISOString().replace('T', ' ').substring(0, 16)}`,
   transport:
     process.env.NODE_ENV === 'development'
       ? {
@@ -330,5 +331,15 @@ app.listen(PORT, (): void => {
   logger.info(`  GET /api/traffic - Get traffic data`);
   logger.info(`  GET /health - Health check`);
 });
+
+// Graceful shutdown
+const shutdown = () => {
+  logger.info('Server is shutting down...');
+  // Här kan man lägga till stängning av DB-anslutningar etc.
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 export default app;
