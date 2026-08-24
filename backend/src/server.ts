@@ -35,6 +35,16 @@ const logger = pino({
         },
 });
 
+// Global error handling for uncaught exceptions and unhandled rejections
+process.on('uncaughtException', error => {
+  logger.fatal({ err: error }, 'Uncaught Exception detected. Shutting down process...');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ promise, reason }, 'Unhandled Rejection detected');
+});
+
 const app = express();
 const PORT: number = parseInt(process.env.PORT || '3001', 10);
 
