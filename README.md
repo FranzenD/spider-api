@@ -24,10 +24,10 @@ spider-api/
 │   └── .env
 ├── frontend/
 │   ├── package.json
-│   ├── vite.config.js
+│   ├── vite.config.ts
 │   ├── index.html
 │   └── src/
-│       ├── main.js
+│       ├── main.ts
 │       ├── App.vue
 │       ├── auth/
 │       │   └── LoginView.vue  # Dormant login view
@@ -53,6 +53,7 @@ spider-api/
 - **Admin View**: Stop search, stop selection and traffic data
 - Vue Router for navigation
 - Composition API with `<script setup>`
+- TypeScript for frontend application code and Vite configuration
 - Responsive design and error handling
 
 ## Quick Start

@@ -60,7 +60,7 @@
           <h3>Trafikavgångar</h3>
           <button
             type="button"
-            @click="fetchTrafficData"
+            @click="fetchTrafficData()"
             :disabled="isLoading || !configuredStop"
             class="fetch-btn"
           >
@@ -102,28 +102,42 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
-import { API_BASE_URL } from '../api.js'
+import { API_BASE_URL } from '../api'
+import type {
+  ApiErrorResponse,
+  MessageType,
+  Stop,
+  StopConfiguration,
+  StopSearchResponse,
+  TrafficApiResponse,
+} from '../types'
 
-const trafficData = ref(null)
-const configuredStop = ref(null)
+const trafficData = ref<TrafficApiResponse | null>(null)
+const configuredStop = ref<StopConfiguration | null>(null)
 const searchQuery = ref('')
-const searchResults = ref([])
+const searchResults = ref<Stop[]>([])
 const hasSearched = ref(false)
 const isSearching = ref(false)
 const isSaving = ref(false)
 const isLoading = ref(false)
 const message = ref('')
-const messageType = ref('')
-let messageTimer
+const messageType = ref<MessageType>('success')
+let messageTimer: ReturnType<typeof setTimeout> | undefined
 
 const departures = computed(() => {
-  return trafficData.value ? trafficData.value.departures : []
+  return trafficData.value?.departures ?? []
 })
 
-const showMessage = (text, type) => {
-  clearTimeout(messageTimer)
+const getApiError = (data: unknown): string | undefined => {
+  if (typeof data !== 'object' || data === null || !('error' in data)) return undefined
+  const error = (data as ApiErrorResponse).error
+  return typeof error === 'string' ? error : undefined
+}
+
+const showMessage = (text: string, type: MessageType): void => {
+  if (messageTimer) clearTimeout(messageTimer)
   message.value = text
   messageType.value = type
   messageTimer = setTimeout(() => {
@@ -131,32 +145,42 @@ const showMessage = (text, type) => {
   }, 5000)
 }
 
-const loadConfiguration = async () => {
+const loadConfiguration = async (): Promise<boolean> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/stops/config`)
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'Kunde inte läsa konfigurationen')
-    configuredStop.value = data
+    const data: unknown = await response.json()
+    if (!response.ok) {
+      throw new Error(getApiError(data) || 'Kunde inte läsa konfigurationen')
+    }
+    configuredStop.value = data as StopConfiguration
     return true
   } catch (error) {
     console.error('Configuration load failed:', error)
-    showMessage(error instanceof Error ? error.message : 'Kunde inte läsa konfigurationen', 'error')
+    showMessage(
+      error instanceof Error ? error.message : 'Kunde inte läsa konfigurationen',
+      'error'
+    )
     return false
   }
 }
 
-const fetchTrafficData = async (showSuccess = true) => {
+const fetchTrafficData = async (showSuccess = true): Promise<boolean> => {
   isLoading.value = true
   try {
     const response = await fetch(`${API_BASE_URL}/api/traffic`)
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'Kunde inte hämta trafikdata')
-    trafficData.value = data
+    const data: unknown = await response.json()
+    if (!response.ok) {
+      throw new Error(getApiError(data) || 'Kunde inte hämta trafikdata')
+    }
+    trafficData.value = data as TrafficApiResponse
     if (showSuccess) showMessage('Trafikdata uppdaterad.', 'success')
     return true
   } catch (error) {
     console.error('Traffic data load failed:', error)
-    showMessage(error instanceof Error ? error.message : 'Kunde inte hämta trafikdata', 'error')
+    showMessage(
+      error instanceof Error ? error.message : 'Kunde inte hämta trafikdata',
+      'error'
+    )
     return false
   } finally {
     isLoading.value = false
@@ -180,16 +204,21 @@ watch(searchQuery, (value, _previousValue, onCleanup) => {
         `${API_BASE_URL}/api/stops/search?query=${encodeURIComponent(query)}`,
         { signal: controller.signal }
       )
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Hållplatssökningen misslyckades')
+      const data: unknown = await response.json()
+      if (!response.ok) {
+        throw new Error(getApiError(data) || 'Hållplatssökningen misslyckades')
+      }
       if (!controller.signal.aborted) {
-        searchResults.value = data.stops
+        searchResults.value = (data as StopSearchResponse).stops
         hasSearched.value = true
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return
       console.error('Stop search failed:', error)
-      showMessage(error instanceof Error ? error.message : 'Hållplatssökningen misslyckades', 'error')
+      showMessage(
+        error instanceof Error ? error.message : 'Hållplatssökningen misslyckades',
+        'error'
+      )
     } finally {
       if (!controller.signal.aborted) isSearching.value = false
     }
@@ -201,7 +230,7 @@ watch(searchQuery, (value, _previousValue, onCleanup) => {
   })
 })
 
-const saveStop = async (stop) => {
+const saveStop = async (stop: Stop): Promise<void> => {
   isSaving.value = true
   try {
     const response = await fetch(`${API_BASE_URL}/api/stops/config`, {
@@ -209,30 +238,35 @@ const saveStop = async (stop) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ areaId: stop.id, stopName: stop.name }),
     })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'Kunde inte spara hållplatsen')
+    const data: unknown = await response.json()
+    if (!response.ok) {
+      throw new Error(getApiError(data) || 'Kunde inte spara hållplatsen')
+    }
 
-    configuredStop.value = data
+    configuredStop.value = data as StopConfiguration
     searchQuery.value = ''
     searchResults.value = []
     showMessage(`Hållplatsen ${stop.name} (${stop.id}) har sparats.`, 'success')
     await fetchTrafficData(false)
   } catch (error) {
     console.error('Stop configuration save failed:', error)
-    showMessage(error instanceof Error ? error.message : 'Kunde inte spara hållplatsen', 'error')
+    showMessage(
+      error instanceof Error ? error.message : 'Kunde inte spara hållplatsen',
+      'error'
+    )
   } finally {
     isSaving.value = false
   }
 }
 
-const formatTimestamp = (timestamp) => {
+const formatTimestamp = (timestamp: string): string => {
   const date = new Date(timestamp)
   return Number.isNaN(date.getTime())
     ? 'Okänd tid'
     : date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-const showDepartureInMinutesFromNow = (departureTime) => {
+const showDepartureInMinutesFromNow = (departureTime: string): string => {
   const diffMins = Math.round((new Date(departureTime).getTime() - Date.now()) / 60000)
   return diffMins > 0 ? `${diffMins} min` : 'Nu'
 }

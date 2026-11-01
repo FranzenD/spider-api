@@ -5,12 +5,12 @@ import TrafficView from './views/TrafficView.vue'
 
 const routes = [
   { path: '/', redirect: '/traffic' },
-  { path: '/traffic', component: TrafficView }
+  { path: '/traffic', component: TrafficView },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 createApp(App).use(router).mount('#app')

@@ -37,24 +37,30 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { API_BASE_URL } from '../api.js'
+import { API_BASE_URL } from '../api'
+import type { ApiErrorResponse, MessageType } from '../types'
 
 const router = useRouter()
-
-// Define emits
-const emit = defineEmits(['authenticated'])
-
-// Reactive state
+const emit = defineEmits<{
+  authenticated: []
+}>()
 const token = ref('')
 const isLoading = ref(false)
 const message = ref('')
-const messageType = ref('')
+const messageType = ref<MessageType>('error')
+let messageTimer: ReturnType<typeof setTimeout> | undefined
+let redirectTimer: ReturnType<typeof setTimeout> | undefined
 
-// Methods
-const authenticate = async () => {
+const getApiError = (data: unknown): string | undefined => {
+  if (typeof data !== 'object' || data === null || !('error' in data)) return undefined
+  const error = (data as ApiErrorResponse).error
+  return typeof error === 'string' ? error : undefined
+}
+
+const authenticate = async (): Promise<void> => {
   if (!token.value.trim()) {
     showMessage('Please enter a token', 'error')
     return
@@ -75,18 +81,16 @@ const authenticate = async () => {
       })
     })
     
-    const data = await response.json()
-    
+    const data: unknown = await response.json()
+
     if (response.ok) {
       showMessage('Authentication successful! Redirecting...', 'success')
       emit('authenticated')
-      
-      // Redirect to traffic view after a short delay
-      setTimeout(() => {
+      redirectTimer = setTimeout(() => {
         router.push('/traffic')
       }, 1500)
     } else {
-      showMessage(data.error || 'Authentication failed', 'error')
+      showMessage(getApiError(data) || 'Authentication failed', 'error')
     }
   } catch (error) {
     console.error('Authentication error:', error)
@@ -96,15 +100,19 @@ const authenticate = async () => {
   }
 }
 
-const showMessage = (text, type) => {
+const showMessage = (text: string, type: MessageType): void => {
+  if (messageTimer) clearTimeout(messageTimer)
   message.value = text
   messageType.value = type
-  
-  // Clear message after 5 seconds
-  setTimeout(() => {
+  messageTimer = setTimeout(() => {
     message.value = ''
   }, 5000)
 }
+
+onBeforeUnmount(() => {
+  if (messageTimer) clearTimeout(messageTimer)
+  if (redirectTimer) clearTimeout(redirectTimer)
+})
 </script>
 
 <style scoped>
