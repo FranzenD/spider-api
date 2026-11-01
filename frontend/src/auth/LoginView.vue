@@ -40,6 +40,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { API_BASE_URL } from '../api.js'
 
 const router = useRouter()
 
@@ -63,7 +64,7 @@ const authenticate = async () => {
   message.value = ''
   
   try {
-    const response = await fetch('http://localhost:3000/auth/token', {
+    const response = await fetch(`${API_BASE_URL}/auth/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

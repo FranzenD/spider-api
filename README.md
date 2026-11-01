@@ -1,6 +1,6 @@
 # Spider API - Traffic Data Application
 
-A full-stack web application for retrieving traffic data with JWT authentication. The project consists of a Node.js/Express backend and a Vue 3 frontend.
+A full-stack web application for retrieving traffic data. Authentication is temporarily disabled while the admin and traffic functionality is being developed; the implementation is kept separate for later reactivation.
 
 ## Project Structure
 
@@ -8,6 +8,7 @@ A full-stack web application for retrieving traffic data with JWT authentication
 spider-api/
 ├── backend/
 │   ├── src/
+│   │   ├── auth/               # Dormant authentication module and types
 │   │   ├── server.ts          # Main Express application
 │   │   ├── types/
 │   │   │   └── index.ts       # TypeScript type definitions
@@ -28,8 +29,9 @@ spider-api/
 │   └── src/
 │       ├── main.js
 │       ├── App.vue
+│       ├── auth/
+│       │   └── LoginView.vue  # Dormant login view
 │       └── views/
-│           ├── LoginView.vue
 │           └── TrafficView.vue
 ├── docker-compose.yml
 └── README.md
@@ -39,20 +41,16 @@ spider-api/
 
 ### Backend (Node.js + Express + TypeScript)
 
-- **POST /auth/token/basic**: Basic Auth to JWT conversion (requires Basic Auth header)
-- **POST /auth/token**: Token-based authentication with JWT
-- **GET /api/traffic/:direction?**: Protected endpoint for traffic data with optional direction parameter
-- **POST /auth/logout**: Clear authentication cookie
+- **GET /api/traffic/:direction?**: Traffic data with optional direction parameter
+- **GET/PUT /api/stops/config**: Read and update the configured stop
+- **GET /api/stops/search**: Search for stops
 - **GET /health**: Health check endpoint
-- Secure cookie-based JWT storage (HttpOnly, Secure, SameSite=Strict)
-- CORS configuration with credentials support
 - Real-time traffic data from Trafiklab API
 - TypeScript for type safety and better developer experience
 
 ### Frontend (Vue 3)
 
-- **Login View**: Token authentication interface
-- **Traffic View**: Traffic data dashboard with real-time updates
+- **Admin View**: Stop search, stop selection and traffic data
 - Vue Router for navigation
 - Composition API with `<script setup>`
 - Responsive design and error handling
@@ -75,7 +73,7 @@ npm run build
 npm start
 ```
 
-The backend will run on `http://localhost:3005` (development) or configured PORT
+The backend will run on `http://localhost:3001` by default. Set `PORT` to use a different port.
 
 #### 2. Frontend Setup
 
@@ -86,6 +84,9 @@ npm run dev
 ```
 
 The frontend will run on `http://localhost:5173`
+
+The frontend connects to `http://localhost:3001` by default. Set
+`VITE_API_BASE_URL` in the frontend environment to use a different backend URL.
 
 ### Option 2: Docker/Podman Container
 
@@ -105,7 +106,7 @@ cd backend
 docker build -t spider-api-backend .
 docker run -d \
   --name spider-api \
-  -p 3005:3005 \
+  -p 3001:3001 \
   --env-file .env \
   spider-api-backend
 
@@ -130,7 +131,7 @@ podman build -t spider-api-backend .
 # Run the container
 podman run -d \
   --name spider-api \
-  -p 3005:3005 \
+  -p 3001:3001 \
   --env-file .env \
   spider-api-backend
 
@@ -155,7 +156,7 @@ docker inspect --format='{{.State.Health.Status}}' spider-api
 podman inspect --format='{{.State.Health.Status}}' spider-api
 
 # Manual health check
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 ```
 
 #### Development with Container
@@ -169,7 +170,7 @@ docker-compose up --build
 # Or manually with volume mounting (Docker)
 docker run -d \
   --name spider-api-dev \
-  -p 3005:3005 \
+  -p 3001:3001 \
   --env-file .env \
   -v $(pwd):/app \
   -v /app/node_modules \
@@ -178,62 +179,45 @@ docker run -d \
 # Or manually with volume mounting (Podman)
 podman run -d \
   --name spider-api-dev \
-  -p 3005:3005 \
+  -p 3001:3001 \
   --env-file .env \
   -v $(pwd):/app:Z \
   -v /app/node_modules \
   spider-api-backend
 ```
 
-## Authentication
+## Authentication (temporarily disabled)
 
-The application supports two authentication methods:
+Authentication is not currently mounted in the running application. The backend
+implementation is isolated in `backend/src/auth/`, and the login view is in
+`frontend/src/auth/`; neither is connected to active routes. The application API
+is currently unauthenticated for development. Re-enable authentication before
+exposing the service to untrusted networks.
 
-### Method 1: Basic Authentication
-
-Valid credentials (username:password):
-
-- `api-client:secret-api-key-123`
-- `mobile-app:mobile-secret-456`
-- `web-app:web-secret-789`
-
-### Method 2: Demo Tokens
-
-- `demo-token-123`
-- `test-token-456`
-- `poc-token-789`
-
-### Authentication Flow
-
-**Basic Auth Flow:**
-
-1. Client sends Basic Auth credentials (Base64 encoded username:password)
-2. Backend validates credentials against hardcoded credential map
-3. If valid, backend issues a JWT and sets it as an HttpOnly cookie
-4. Frontend can access protected endpoints using the cookie
-
-**Token Auth Flow:**
-
-1. User enters a demo token in the login form
-2. Backend validates the token against hardcoded token list
-3. If valid, backend issues a JWT and sets it as an HttpOnly cookie
-4. Frontend can access protected endpoints using the cookie
+To re-enable it later, mount `createAuthModule(logger).router` under `/auth`,
+register `cookie-parser`, and apply its `verifyJWT` middleware to the protected
+API routes. Also restore credentialed CORS and connect the dormant login view
+in the frontend router.
 
 ## API Endpoints
 
-### Authentication
-
-- `POST /auth/token/basic` - Authenticate with Basic Auth (returns JWT)
-  - Requires `Authorization: Basic <base64(username:password)>` header
-- `POST /auth/token` - Authenticate with demo token (returns JWT)
-  - Request body: `{ "token": "demo-token-123" }`
-- `POST /auth/logout` - Clear authentication cookie
-
 ### Traffic Data
 
-- `GET /api/traffic` - Get all current traffic data (requires authentication)
-- `GET /api/traffic/:direction` - Get traffic data filtered by direction (requires authentication)
+- `GET /api/traffic` - Get all current traffic data
+- `GET /api/traffic/:direction` - Get traffic data filtered by direction
   - Example: `GET /api/traffic/Stockholm` returns only departures heading to Stockholm
+
+### Stop administration
+
+- `GET /api/stops/search?query=<text>` - Search for stops
+- `GET /api/stops/config` - Read the configured stop
+- `PUT /api/stops/config` - Save the stop used for traffic data
+  - Request body: `{ "areaId": "740065516", "stopName": "Example stop" }`
+
+The selected stop is stored in `backend/src/config.json`. The backend reads this
+file for each traffic request; if it does not exist, it uses area ID `740065516`.
+Ensure this file location is writable by the backend process and persisted when
+running in a container.
 
 ### Utility
 
@@ -244,18 +228,18 @@ Valid credentials (username:password):
 Create a `.env` file in the backend directory:
 
 ```env
-PORT=3000
+PORT=3001
 API_KEY=your_trafiklab_api_key_here
-JWT_SECRET=your_jwt_secret_here_should_be_long_and_secure
 NODE_ENV=development
 ```
 
 ### Required Environment Variables
 
 - `API_KEY`: Your Trafiklab API key for traffic data
-- `JWT_SECRET`: Secret key for JWT signing (min 32 characters recommended)
-- `PORT`: Server port (default: 3000)
+- `PORT`: Server port (default: 3001)
 - `NODE_ENV`: Environment (development/production)
+
+`JWT_SECRET` is needed only when authentication is re-enabled.
 
 ````
 
@@ -272,7 +256,7 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 ### Configuration
 1. Get your free API key from [Trafiklab](https://www.trafiklab.se/)
 2. Add the API key to your `.env` file
-3. Optionally modify the `areaId` in `server.ts` for different stations
+3. Choose a stop from the admin view; its ID is stored in `backend/src/config.json`
 
 ## Development Notes
 
@@ -280,9 +264,7 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 - Uses **tsx** for development with hot reload
 - ESLint + Prettier configured for code quality
 - The frontend is configured for development only (not production-ready)
-- All fetch requests include `credentials: 'include'` for cookie support
 - CORS is configured to allow requests from `http://localhost:5173` and `http://localhost:5174`
-- JWT cookies are set with security flags appropriate for the environment
 
 ## Technology Stack
 
@@ -290,7 +272,7 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 - Node.js 20+
 - Express 4.x
 - TypeScript 5.x
-- JWT (jsonwebtoken)
+- JWT (jsonwebtoken; authentication module currently dormant)
 - node-fetch for API calls
 - ESLint + Prettier for code quality
 
@@ -299,13 +281,10 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 - Vue Router
 - Vite build tool
 
-## Security Features
+## Security
 
-- JWT stored in HttpOnly cookies (XSS protection)
-- SameSite=Strict cookie attribute (CSRF protection)
-- Secure cookie flag in production
-- Token expiration (24 hours)
-- CORS configuration with specific origin allowlist
+- Authentication is temporarily disabled: application endpoints are accessible without credentials.
+- CORS is configured with a specific origin allowlist.
 - Container runs as non-root user
 - Health check endpoint for monitoring
 
@@ -313,36 +292,20 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 
 1. Start backend and frontend servers (locally or with containers)
 2. Navigate to `http://localhost:5173`
-3. Authenticate using either:
-   - **Basic Auth**: Use credentials like `api-client:secret-api-key-123`
-   - **Demo Token**: Use tokens like `demo-token-123`
-4. Click "Fetch Traffic Data" to test the protected endpoint
-5. Test direction filtering: `GET /api/traffic/Stockholm`
+3. Search for a stop and save it to the configuration; the admin view then loads its traffic data
+4. Test direction filtering: `GET /api/traffic/Stockholm`
 
 ### Testing with cURL
 
 ```bash
 # Test health endpoint
-curl http://localhost:3005/health
+curl http://localhost:3001/health
 
-# Test Basic Auth
-curl -X POST http://localhost:3005/auth/token/basic \
-  -H "Authorization: Basic $(echo -n 'api-client:secret-api-key-123' | base64)" \
-  -c cookies.txt
-
-# Test token auth
-curl -X POST http://localhost:3005/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"token":"demo-token-123"}' \
-  -c cookies.txt
-
-# Test traffic endpoint (requires cookie from auth)
-curl http://localhost:3005/api/traffic \
-  -b cookies.txt
+# Test traffic endpoint
+curl http://localhost:3001/api/traffic
 
 # Test traffic endpoint with direction filter
-curl http://localhost:3005/api/traffic/Stockholm \
-  -b cookies.txt
+curl http://localhost:3001/api/traffic/Stockholm
 ````
 
 ### Testing with Container
@@ -352,13 +315,13 @@ curl http://localhost:3005/api/traffic/Stockholm \
 docker-compose up -d
 
 # Or start backend container manually
-cd backend && docker run -d --name spider-api -p 3005:3005 --env-file .env spider-api-backend
+cd backend && docker run -d --name spider-api -p 3001:3001 --env-file .env spider-api-backend
 
 # Start frontend locally
 cd frontend && npm run dev
 
 # Test health endpoint
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 ```
 
 ## Container Best Practices

@@ -1,141 +1,247 @@
 <template>
   <div class="traffic-container">
     <div class="traffic-card">
-      <h2>Traffic Data Dashboard</h2>
+      <h2>Hållplatsadministration</h2>
       <p class="description">
-        Real-time traffic information from third-party API
+        Sök upp hållplatsen som ska användas för trafikvisningen.
       </p>
 
-      <div class="actions">
-        <button
-          @click="fetchTrafficData"
-          :disabled="isLoading"
-          class="fetch-btn"
-        >
-          {{ isLoading ? 'Loading...' : 'Fetch Traffic Data' }}
-        </button>
-      </div>
-
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
-      </div>
-
-      <div v-if="trafficData" class="traffic-data">
-        <div class="data-header">
-          <h3>Spindelvägen</h3>
-          <span class="timestamp">Uppdaterad: {{
-            formatTimestamp(trafficData.timestamp)
-          }}</span>
+      <section class="admin-panel">
+        <div v-if="configuredStop" class="configured-stop">
+          <div>
+            <span class="configured-label">Aktiv hållplats</span>
+            <strong>{{ configuredStop.stopName || 'Hållplats' }}</strong>
+          </div>
+          <code>{{ configuredStop.areaId }}</code>
         </div>
 
-        <div class="traffic-grid">
-          <div
-            v-for="(departure, index) in departures"
-            :key="index"
-            :class="['traffic-item']"
+        <label for="stop-search">Sök efter namn eller plats</label>
+        <input
+          id="stop-search"
+          v-model="searchQuery"
+          type="search"
+          autocomplete="off"
+          placeholder="Skriv minst två tecken..."
+          class="search-input"
+        />
+
+        <p v-if="isSearching" class="search-hint" role="status">Söker hållplatser...</p>
+        <ul v-else-if="searchResults.length" class="search-results">
+          <li v-for="stop in searchResults" :key="stop.id" class="search-item">
+            <div>
+              <strong>{{ stop.name }}</strong>
+              <code>{{ stop.id }}</code>
+            </div>
+            <button
+              type="button"
+              class="save-stop-btn"
+              :disabled="isSaving"
+              @click="saveStop(stop)"
+            >
+              {{ isSaving ? 'Sparar...' : 'Använd hållplats' }}
+            </button>
+          </li>
+        </ul>
+        <p
+          v-else-if="hasSearched && searchQuery.trim().length >= 2"
+          class="search-hint"
+          role="status"
+        >
+          Inga hållplatser hittades.
+        </p>
+
+        <div v-if="message" :class="['message', messageType]" role="status">
+          {{ message }}
+        </div>
+      </section>
+
+      <section class="traffic-section">
+        <div class="traffic-title">
+          <h3>Trafikavgångar</h3>
+          <button
+            type="button"
+            @click="fetchTrafficData"
+            :disabled="isLoading || !configuredStop"
+            class="fetch-btn"
           >
-            <div class="location">
-              <h4>{{ formatTimestamp(departure.realtime) }}</h4>
-              <p>{{ showDepartureInMinutesFromNow(departure.realtime) }}</p>
-              <p>{{ departure.route.direction }}</p>
+            {{ isLoading ? 'Hämtar...' : 'Uppdatera trafik' }}
+          </button>
+        </div>
+
+        <div v-if="trafficData" class="traffic-data">
+          <div class="data-header">
+            <h4>{{ configuredStop?.stopName || `Hållplats ${configuredStop?.areaId}` }}</h4>
+            <span v-if="trafficData.meta?.timestamp" class="timestamp">
+              Uppdaterad: {{ formatTimestamp(trafficData.meta.timestamp) }}
+            </span>
+          </div>
+
+          <div class="traffic-grid">
+            <div
+              v-for="(departure, index) in departures"
+              :key="index"
+              :class="['traffic-item']"
+            >
+              <div class="location">
+                <h4>{{ formatTimestamp(departure.realtime) }}</h4>
+                <p>{{ showDepartureInMinutesFromNow(departure.realtime) }}</p>
+                <p>{{ departure.route.direction }}</p>
+              </div>
             </div>
           </div>
+          <p v-if="departures.length === 0" class="no-departures">
+            Inga avgångar hittades för den här hållplatsen.
+          </p>
         </div>
-      </div>
 
-      <div v-else-if="!isLoading" class="no-data">
-        <p>Click "Fetch Traffic Data" to load current traffic information</p>
-      </div>
+        <div v-else-if="!isLoading" class="no-data">
+          <p>Välj en hållplats för att visa aktuella avgångar.</p>
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { API_BASE_URL } from '../api.js'
 
-const router = useRouter()
-
-// Reactive state
 const trafficData = ref(null)
+const configuredStop = ref(null)
+const searchQuery = ref('')
+const searchResults = ref([])
+const hasSearched = ref(false)
+const isSearching = ref(false)
+const isSaving = ref(false)
 const isLoading = ref(false)
 const message = ref('')
 const messageType = ref('')
+let messageTimer
 
-// Computed properties
 const departures = computed(() => {
   return trafficData.value ? trafficData.value.departures : []
 })
 
-// Methods
-const fetchTrafficData = async () => {
-  isLoading.value = true
-  message.value = ''
+const showMessage = (text, type) => {
+  clearTimeout(messageTimer)
+  message.value = text
+  messageType.value = type
+  messageTimer = setTimeout(() => {
+    message.value = ''
+  }, 5000)
+}
 
+const loadConfiguration = async () => {
   try {
-    const response = await fetch('http://localhost:3005/api/traffic', {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response.ok) {
-      trafficData.value = await response.json()
-      showMessage('Traffic data loaded successfully', 'success')
-    } else if (response.status === 401) {
-      showMessage(
-        'Authentication required. Please login first.',
-        'error'
-      )
-      // Redirect to login after a delay
-      setTimeout(() => {
-        router.push('/')
-      }, 2000)
-    } else {
-      const errorData = await response.json()
-      showMessage(
-        errorData.error || 'Failed to fetch traffic data',
-        'error'
-      )
-    }
+    const response = await fetch(`${API_BASE_URL}/api/stops/config`)
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Kunde inte läsa konfigurationen')
+    configuredStop.value = data
+    return true
   } catch (error) {
-    console.error('Fetch error:', error)
-    showMessage(
-      'Network error. Please check if the backend server is running.',
-      'error'
-    )
+    console.error('Configuration load failed:', error)
+    showMessage(error instanceof Error ? error.message : 'Kunde inte läsa konfigurationen', 'error')
+    return false
+  }
+}
+
+const fetchTrafficData = async (showSuccess = true) => {
+  isLoading.value = true
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/traffic`)
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Kunde inte hämta trafikdata')
+    trafficData.value = data
+    if (showSuccess) showMessage('Trafikdata uppdaterad.', 'success')
+    return true
+  } catch (error) {
+    console.error('Traffic data load failed:', error)
+    showMessage(error instanceof Error ? error.message : 'Kunde inte hämta trafikdata', 'error')
+    return false
   } finally {
     isLoading.value = false
   }
 }
 
-const formatTimestamp = (timestamp) => {
-  return new Date(timestamp).toLocaleTimeString('sv-SE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
+watch(searchQuery, (value, _previousValue, onCleanup) => {
+  const query = value.trim()
+  searchResults.value = []
+  hasSearched.value = false
+  if (query.length < 2) {
+    isSearching.value = false
+    return
+  }
+
+  const controller = new AbortController()
+  const searchTimer = setTimeout(async () => {
+    isSearching.value = true
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/stops/search?query=${encodeURIComponent(query)}`,
+        { signal: controller.signal }
+      )
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Hållplatssökningen misslyckades')
+      if (!controller.signal.aborted) {
+        searchResults.value = data.stops
+        hasSearched.value = true
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return
+      console.error('Stop search failed:', error)
+      showMessage(error instanceof Error ? error.message : 'Hållplatssökningen misslyckades', 'error')
+    } finally {
+      if (!controller.signal.aborted) isSearching.value = false
+    }
+  }, 300)
+
+  onCleanup(() => {
+    clearTimeout(searchTimer)
+    controller.abort()
   })
+})
+
+const saveStop = async (stop) => {
+  isSaving.value = true
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/stops/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ areaId: stop.id, stopName: stop.name }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Kunde inte spara hållplatsen')
+
+    configuredStop.value = data
+    searchQuery.value = ''
+    searchResults.value = []
+    showMessage(`Hållplatsen ${stop.name} (${stop.id}) har sparats.`, 'success')
+    await fetchTrafficData(false)
+  } catch (error) {
+    console.error('Stop configuration save failed:', error)
+    showMessage(error instanceof Error ? error.message : 'Kunde inte spara hållplatsen', 'error')
+  } finally {
+    isSaving.value = false
+  }
 }
 
-const showMessage = (text, type) => {
-  message.value = text
-  messageType.value = type
-
-  // Clear message after 5 seconds
-  setTimeout(() => {
-    message.value = ''
-  }, 5000)
+const formatTimestamp = (timestamp) => {
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime())
+    ? 'Okänd tid'
+    : date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 const showDepartureInMinutesFromNow = (departureTime) => {
-  const now = new Date()
-  const departure = new Date(departureTime)
-  const diffMs = departure - now
-  const diffMins = Math.round(diffMs / 60000)
+  const diffMins = Math.round((new Date(departureTime).getTime() - Date.now()) / 60000)
   return diffMins > 0 ? `${diffMins} min` : 'Nu'
 }
+
+onMounted(async () => {
+  if (await loadConfiguration()) await fetchTrafficData(false)
+})
+
+onBeforeUnmount(() => clearTimeout(messageTimer))
 </script>
 
 <style scoped>
@@ -169,9 +275,50 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   margin-bottom: 2rem;
 }
 
-.actions {
-  text-align: center;
-  margin-bottom: 2rem;
+.admin-panel {
+  max-width: 720px;
+  margin: 0 auto 2rem;
+  padding: 1.5rem;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.admin-panel > label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.configured-stop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #c3e6cb;
+  border-radius: 6px;
+  background: #d4edda;
+  color: #155724;
+}
+
+.configured-stop > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.configured-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.configured-stop code,
+.search-item code {
+  color: #555;
+  font-size: 0.85rem;
 }
 
 .fetch-btn {
@@ -214,8 +361,26 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   border: 1px solid #f5c6cb;
 }
 
+.traffic-section {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.traffic-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.traffic-title h3 {
+  margin: 0;
+  color: #333;
+}
+
 .traffic-data {
-  margin-top: 2rem;
+  margin-top: 1rem;
 }
 
 .data-header {
@@ -227,7 +392,7 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   border-bottom: 2px solid #eee;
 }
 
-.data-header h3 {
+.data-header h4 {
   margin: 0;
   color: #333;
 }
@@ -263,54 +428,89 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   background: #fffef8;
 }
 
-.traffic-item.congestion-heavy {
-  border-color: #dc3545;
-  background: #fff8f8;
+.search-input {
+  display: block;
+  box-sizing: border-box;
+  padding: 0.75rem;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  width: 100%;
+  font-size: 1rem;
 }
 
-.location h4 {
-  margin: 0 0 1rem 0;
-  color: #333;
-  font-size: 1.1rem;
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
 
-.metrics {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+.search-results {
+  max-height: 320px;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  list-style: none;
 }
 
-.metric {
+.search-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #eee;
 }
 
-.metric .label {
-  font-weight: 500;
+.search-item:last-child {
+  border-bottom: 0;
+}
+
+.search-item > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.save-stop-btn {
+  flex-shrink: 0;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: 4px;
+  background: #667eea;
+  color: white;
+  cursor: pointer;
+}
+
+.save-stop-btn:disabled {
+  background: #999;
+  cursor: wait;
+}
+
+.search-hint,
+.no-data,
+.no-departures {
+  padding: 1rem;
   color: #666;
-}
-
-.metric .value {
-  font-weight: 600;
-  color: #333;
-}
-
-.data-footer {
   text-align: center;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-  color: #666;
 }
 
 .no-data {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: #666;
+  padding: 2rem 1rem;
 }
 
-.no-data p {
-  margin: 0;
-  font-size: 1.1rem;
+@media (max-width: 600px) {
+  .traffic-card {
+    padding: 1.25rem;
+  }
+
+  .configured-stop,
+  .search-item,
+  .traffic-title,
+  .data-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>
