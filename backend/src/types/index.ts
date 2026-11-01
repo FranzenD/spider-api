@@ -23,14 +23,19 @@ export interface SingleDepartureResponse {
 export interface Stop {
   id: string;
   name: string;
-  location: {
-    lat: number;
-    lon: number;
-  };
 }
 
 export interface StopSearchResponse {
   stops: Stop[];
+}
+
+export interface StopLookupResponse {
+  stop_groups: StopLookupGroup[];
+}
+
+export interface StopLookupGroup {
+  id: string;
+  name: string;
 }
 
 export interface StopConfiguration {

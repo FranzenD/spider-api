@@ -19,10 +19,6 @@ export interface TrafficApiResponse {
 export interface Stop {
   id: string
   name: string
-  location: {
-    lat: number
-    lon: number
-  }
 }
 
 export interface StopSearchResponse {

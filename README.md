@@ -210,7 +210,7 @@ in the frontend router.
 
 ### Stop administration
 
-- `GET /api/stops/search?query=<text>` - Search for stops
+- `GET /api/stops/search?query=<text>` - Search stops using Trafiklab Stop Lookup
 - `GET /api/stops/config` - Read the configured stop
 - `PUT /api/stops/config` - Save the stop used for traffic data
   - Request body: `{ "areaId": "740065516", "stopName": "Example stop" }`
@@ -219,6 +219,10 @@ The selected stop is stored in `backend/src/config.json`. The backend reads this
 file for each traffic request; if it does not exist, it uses area ID `740065516`.
 Ensure this file location is writable by the backend process and persisted when
 running in a container.
+
+Stop search calls Trafiklab's `/v1/stops/name/{searchValue}/` endpoint. Its
+`stop_groups` response is normalized to `{ stops: [{ id, name }] }`; the group ID
+is the ID stored and used for departure lookups.
 
 ### Utility
 

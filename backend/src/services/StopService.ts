@@ -1,5 +1,27 @@
 import fetch, { type Response as FetchResponse } from 'node-fetch';
-import { StopSearchResponse, TrafficApiResponse } from '../types/index.js';
+import type {
+  Stop,
+  StopLookupResponse,
+  StopLookupGroup,
+  StopSearchResponse,
+  TrafficApiResponse,
+} from '../types/index.js';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isStopLookupGroup(value: unknown): value is StopLookupGroup {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
+}
+
+function isStopLookupResponse(value: unknown): value is StopLookupResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.stop_groups) &&
+    value.stop_groups.every(isStopLookupGroup)
+  );
+}
 
 export class StopService {
   static async searchStops(query: string): Promise<StopSearchResponse> {
@@ -7,12 +29,20 @@ export class StopService {
     if (!apiKey) {
       throw new Error('API key not configured');
     }
-    const url = new URL('https://realtime-api.trafiklab.se/v1/stops');
-    url.searchParams.set('query', query);
+    const url = new URL(
+      `https://realtime-api.trafiklab.se/v1/stops/name/${encodeURIComponent(query)}/`
+    );
     url.searchParams.set('key', apiKey);
 
     const response = await this.fetchWithTimeout(url, 'Failed to search stops');
-    return (await response.json()) as StopSearchResponse;
+    const result: unknown = await response.json();
+    if (!isStopLookupResponse(result)) {
+      throw new Error('Stop Lookup API returned an invalid response');
+    }
+
+    const stops: Stop[] = result.stop_groups.map(({ id, name }) => ({ id, name }));
+
+    return { stops };
   }
 
   static async getTraffic(areaId: string): Promise<TrafficApiResponse> {
