@@ -5,7 +5,7 @@ export interface TrafficDeparture {
     direction: string;
     designation: string;
   };
-  destination: string;
+  destination?: string;
   expected?: string;
 }
 

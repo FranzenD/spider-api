@@ -76,18 +76,26 @@
             </span>
           </div>
 
-          <div class="traffic-grid">
-            <div
-              v-for="(departure, index) in departures"
-              :key="index"
-              :class="['traffic-item']"
+          <div class="destination-groups">
+            <section
+              v-for="group in departuresByDestination"
+              :key="group.key"
+              class="destination-group"
             >
-              <div class="location">
-                <h4>{{ formatTimestamp(departure.realtime) }}</h4>
-                <p>{{ showDepartureInMinutesFromNow(departure.realtime) }}</p>
-                <p>{{ departure.route.direction }}</p>
+              <h4 class="destination-heading">{{ group.destination }}</h4>
+              <div class="traffic-grid">
+                <div
+                  v-for="(departure, index) in group.departures"
+                  :key="`${departure.realtime}-${departure.route.designation}-${index}`"
+                  class="traffic-item"
+                >
+                  <div class="location">
+                    <h4>{{ formatTimestamp(departure.realtime) }}</h4>
+                    <p>{{ showDepartureInMinutesFromNow(departure.realtime) }}</p>
+                  </div>
+                </div>
               </div>
-            </div>
+            </section>
           </div>
           <p v-if="departures.length === 0" class="no-departures">
             Inga avgångar hittades för den här hållplatsen.
@@ -112,6 +120,7 @@ import type {
   StopConfiguration,
   StopSearchResponse,
   TrafficApiResponse,
+  TrafficDeparture,
 } from '../types'
 
 const trafficData = ref<TrafficApiResponse | null>(null)
@@ -128,6 +137,27 @@ let messageTimer: ReturnType<typeof setTimeout> | undefined
 
 const departures = computed(() => {
   return trafficData.value?.departures ?? []
+})
+
+const departuresByDestination = computed(() => {
+  const groups = new Map<
+    string,
+    { key: string; destination: string; departures: TrafficDeparture[] }
+  >()
+
+  for (const departure of departures.value) {
+    const destination = departure.route.direction.trim() || 'Okänd destination'
+    const key = destination.toLocaleLowerCase('sv-SE')
+    const group = groups.get(key)
+
+    if (group) {
+      group.departures.push(departure)
+    } else {
+      groups.set(key, { key, destination, departures: [departure] })
+    }
+  }
+
+  return Array.from(groups.values())
 })
 
 const getApiError = (data: unknown): string | undefined => {
@@ -442,6 +472,20 @@ onBeforeUnmount(() => clearTimeout(messageTimer))
   /* grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); */
   gap: 1rem;
   margin-bottom: 2rem;
+}
+
+.destination-groups {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.destination-heading {
+  margin: 0 0 0.75rem;
+  color: #333;
+}
+
+.destination-group .traffic-grid {
+  margin-bottom: 0;
 }
 
 .traffic-item {
