@@ -3,6 +3,7 @@ import type {
   Stop,
   StopLookupResponse,
   StopLookupGroup,
+  StopLocation,
   StopSearchResponse,
   TrafficApiResponse,
 } from '../types/index.js';
@@ -12,7 +13,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStopLookupGroup(value: unknown): value is StopLookupGroup {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string';
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    Array.isArray(value.stops) &&
+    value.stops.every(isStopLocation)
+  );
+}
+
+function isStopLocation(value: unknown): value is StopLocation {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.lat === 'number' &&
+    typeof value.lon === 'number'
+  );
 }
 
 function isStopLookupResponse(value: unknown): value is StopLookupResponse {
@@ -40,7 +57,11 @@ export class StopService {
       throw new Error('Stop Lookup API returned an invalid response');
     }
 
-    const stops: Stop[] = result.stop_groups.map(({ id, name }) => ({ id, name }));
+    const stops: Stop[] = result.stop_groups.map(({ id, name, stops }) => ({
+      id,
+      name,
+      stops,
+    }));
 
     return { stops };
   }

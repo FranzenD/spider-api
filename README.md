@@ -221,8 +221,9 @@ Ensure this file location is writable by the backend process and persisted when
 running in a container.
 
 Stop search calls Trafiklab's `/v1/stops/name/{searchValue}/` endpoint. Its
-`stop_groups` response is normalized to `{ stops: [{ id, name }] }`; the group ID
-is the ID stored and used for departure lookups.
+`stop_groups` response is normalized to `{ stops: [{ id, name, stops: [...] }] }`;
+the group ID is the ID stored and used for departure lookups. Each child stop
+includes `id`, `name`, `lat`, and `lon` coordinates for future map views.
 
 ### Utility
 

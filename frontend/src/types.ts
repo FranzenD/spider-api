@@ -19,6 +19,14 @@ export interface TrafficApiResponse {
 export interface Stop {
   id: string
   name: string
+  stops: StopLocation[]
+}
+
+export interface StopLocation {
+  id: string
+  name: string
+  lat: number
+  lon: number
 }
 
 export interface StopSearchResponse {
@@ -28,6 +36,7 @@ export interface StopSearchResponse {
 export interface StopConfiguration {
   areaId: string
   stopName?: string
+  stops?: StopLocation[]
 }
 
 export interface ApiErrorResponse {

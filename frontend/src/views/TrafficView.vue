@@ -5,14 +5,22 @@
       <p class="description">
         Sök upp hållplatsen som ska användas för trafikvisningen.
       </p>
-
+      
       <section class="admin-panel">
         <div v-if="configuredStop" class="configured-stop">
           <div>
             <span class="configured-label">Aktiv hållplats</span>
             <strong>{{ configuredStop.stopName || 'Hållplats' }}</strong>
           </div>
-          <code>{{ configuredStop.areaId }}</code>
+          <div class="configured-id-info">
+            <code>{{ configuredStop.areaId }}</code>
+            <ul v-if="configuredStop.stops?.length" class="configured-coordinates">
+              <li v-for="stop in configuredStop.stops" :key="stop.id">
+                <span v-if="configuredStop.stops.length > 1">{{ stop.name }}:</span>
+                Lon: {{ stop.lon }}, Lat: {{ stop.lat }}
+              </li>
+            </ul>
+          </div>
         </div>
 
         <label for="stop-search">Sök efter namn eller plats</label>
@@ -266,7 +274,11 @@ const saveStop = async (stop: Stop): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/api/stops/config`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ areaId: stop.id, stopName: stop.name }),
+      body: JSON.stringify({
+        areaId: stop.id,
+        stopName: stop.name,
+        stops: stop.stops,
+      }),
     })
     const data: unknown = await response.json()
     if (!response.ok) {
@@ -356,7 +368,8 @@ onBeforeUnmount(() => clearTimeout(messageTimer))
 }
 
 .configured-stop {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
@@ -371,6 +384,20 @@ onBeforeUnmount(() => clearTimeout(messageTimer))
 .configured-stop > div {
   display: grid;
   gap: 0.2rem;
+}
+
+.configured-coordinates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.configured-id-info {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+  text-align: right;
 }
 
 .configured-label {
@@ -589,6 +616,15 @@ onBeforeUnmount(() => clearTimeout(messageTimer))
   .data-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .configured-stop {
+    grid-template-columns: 1fr;
+  }
+
+  .configured-id-info {
+    justify-items: start;
+    text-align: left;
   }
 }
 </style>

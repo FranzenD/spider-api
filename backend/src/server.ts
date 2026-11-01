@@ -86,7 +86,29 @@ function getStopConfiguration(): StopConfiguration {
     ...('stopName' in config && typeof config.stopName === 'string'
       ? { stopName: config.stopName }
       : {}),
+    ...('stops' in config && isStopLocations(config.stops) ? { stops: config.stops } : {}),
   };
+}
+
+function isStopLocations(value: unknown): value is StopConfiguration['stops'] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      stop =>
+        typeof stop === 'object' &&
+        stop !== null &&
+        'id' in stop &&
+        typeof stop.id === 'string' &&
+        'name' in stop &&
+        typeof stop.name === 'string' &&
+        'lat' in stop &&
+        typeof stop.lat === 'number' &&
+        Number.isFinite(stop.lat) &&
+        'lon' in stop &&
+        typeof stop.lon === 'number' &&
+        Number.isFinite(stop.lon)
+    )
+  );
 }
 
 function saveStopConfiguration(config: StopConfiguration): void {
@@ -179,9 +201,25 @@ app.get('/api/stops/search', async (req: Request, res: Response): Promise<void> 
   }
 });
 
-app.get('/api/stops/config', (_req: Request, res: Response): void => {
+app.get('/api/stops/config', async (_req: Request, res: Response): Promise<void> => {
   try {
-    res.json(getStopConfiguration());
+    const config = getStopConfiguration();
+    if (!config.stops?.length && config.stopName && process.env.API_KEY) {
+      try {
+        const searchResults = await StopService.searchStops(config.stopName);
+        const matchingStop = searchResults.stops.find(stop => stop.id === config.areaId);
+        if (matchingStop?.stops.length) {
+          config.stops = matchingStop.stops;
+          saveStopConfiguration(config);
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, areaId: config.areaId },
+          'Could not load coordinates for the configured stop'
+        );
+      }
+    }
+    res.json(config);
   } catch (error) {
     logger.error({ err: error }, 'Error reading stop configuration');
     res.status(500).json({ error: 'Failed to read stop configuration' });
@@ -189,7 +227,7 @@ app.get('/api/stops/config', (_req: Request, res: Response): void => {
 });
 
 app.put('/api/stops/config', (req: Request, res: Response): void => {
-  const { areaId, stopName } = req.body ?? {};
+  const { areaId, stopName, stops } = req.body ?? {};
   if (!isAreaId(areaId)) {
     res.status(400).json({ error: 'A valid stop areaId is required' });
     return;
@@ -198,10 +236,15 @@ app.put('/api/stops/config', (req: Request, res: Response): void => {
     res.status(400).json({ error: 'stopName must be a string of at most 200 characters' });
     return;
   }
+  if (stops !== undefined && !isStopLocations(stops)) {
+    res.status(400).json({ error: 'stops must be an array of stops with valid coordinates' });
+    return;
+  }
 
   const config: StopConfiguration = {
     areaId,
     ...(typeof stopName === 'string' && stopName.trim() ? { stopName: stopName.trim() } : {}),
+    ...(stops ? { stops } : {}),
   };
 
   try {
