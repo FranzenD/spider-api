@@ -1,9 +1,9 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { API_BASE_URL } from '../api'
-import type { Stop, StopSearchResponse } from '../types'
-import { getApiError } from './useApiError'
+import type { Stop } from '../types'
+import { useStopApi } from './useStopApi'
 
 export const useStopSearch = () => {
+  const stopApi = useStopApi()
   const query = ref('')
   const results = ref<Stop[]>([])
   const hasSearched = ref(false)
@@ -38,16 +38,9 @@ export const useStopSearch = () => {
     searchTimer = setTimeout(async () => {
       isSearching.value = true
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/stops/search?query=${encodeURIComponent(searchQuery)}`,
-          { signal: controller.signal }
-        )
-        const data: unknown = await response.json()
-        if (!response.ok) {
-          throw new Error(getApiError(data) || 'Hållplatssökningen misslyckades')
-        }
+        const data = await stopApi.searchStops(searchQuery, controller.signal)
         if (!controller.signal.aborted && currentRequestId === requestId) {
-          results.value = (data as StopSearchResponse).stops
+          results.value = data.stops
           hasSearched.value = true
         }
       } catch (caughtError) {

@@ -1,9 +1,9 @@
 import { onBeforeUnmount, ref } from 'vue'
-import { API_BASE_URL } from '../api'
 import type { TrafficApiResponse } from '../types'
-import { getApiError } from './useApiError'
+import { useStopApi } from './useStopApi'
 
 export const useTrafficData = () => {
+  const stopApi = useStopApi()
   const data = ref<TrafficApiResponse | null>(null)
   const isLoading = ref(false)
   const error = ref('')
@@ -30,13 +30,9 @@ export const useTrafficData = () => {
     if (successTimer) clearTimeout(successTimer)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/traffic`, {
-        signal: requestController.signal,
-      })
-      const responseData: unknown = await response.json()
-      if (!response.ok) {
-        throw new Error(getApiError(responseData) || 'Kunde inte hämta trafikdata')
-      }
+      const responseData: TrafficApiResponse = await stopApi.getTraffic(
+        requestController.signal
+      )
       if (currentRequestId !== requestId) return false
 
       data.value = responseData as TrafficApiResponse

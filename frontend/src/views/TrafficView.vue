@@ -62,15 +62,14 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { API_BASE_URL } from '../api'
 import ConfiguredStop from '../components/ConfiguredStop.vue'
 import Favorites from '../components/Favorites.vue'
 import History from '../components/History.vue'
 import StopSearch from '../components/StopSearch.vue'
 import TrafficDepartures from '../components/TrafficDepartures.vue'
 import { useSavedStops } from '../composables/useSavedStops'
-import { getApiError } from '../composables/useApiError'
 import { useStopSearch } from '../composables/useStopSearch'
+import { useStopApi } from '../composables/useStopApi'
 import { useTrafficData } from '../composables/useTrafficData'
 import type { MessageType, Stop, StopConfiguration } from '../types'
 
@@ -122,15 +121,11 @@ const {
   fetchTrafficData,
   cancel: cancelTrafficRequest,
 } = useTrafficData()
+const stopApi = useStopApi()
 
 const loadConfiguration = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stops/config`)
-    const data: unknown = await response.json()
-    if (!response.ok) {
-      throw new Error(getApiError(data) || 'Kunde inte läsa konfigurationen')
-    }
-    configuredStop.value = data as StopConfiguration
+    configuredStop.value = await stopApi.getStopConfiguration()
     return true
   } catch (error) {
     console.error('Configuration load failed:', error)
@@ -150,21 +145,7 @@ const selectStop = async (
   cancelStopSearch()
   isSaving.value = true
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stops/config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        areaId: stop.id,
-        stopName: stop.name,
-        stops: stop.stops,
-      }),
-    })
-    const data: unknown = await response.json()
-    if (!response.ok) {
-      throw new Error(getApiError(data) || 'Kunde inte spara hållplatsen')
-    }
-
-    configuredStop.value = data as StopConfiguration
+    configuredStop.value = await stopApi.saveStopConfiguration(stop)
     updateSavedStopsForSelection(stop, source)
     searchQuery.value = ''
     showMessage(`Hållplatsen ${stop.name} (${stop.id}) har sparats.`, 'success')
