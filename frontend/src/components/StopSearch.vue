@@ -20,6 +20,18 @@
           <span v-if="stop.transport_modes?.length" class="transport-modes">
             Trafikslag: {{ stop.transport_modes.join(', ') }}
           </span>
+          <span v-if="stop.area_type || stop.average_daily_stop_times !== undefined" class="stop-metadata">
+            <template v-if="stop.area_type">Typ: {{ stop.area_type }}</template>
+            <template v-if="stop.average_daily_stop_times !== undefined">
+              <span v-if="stop.area_type"> · </span>
+              {{ stop.average_daily_stop_times }} avgångar/dag
+            </template>
+          </span>
+          <ul v-if="stop.stops.length > 1" class="child-stops">
+            <li v-for="location in stop.stops" :key="location.id">
+              {{ location.name }} (ID {{ location.id }}) · {{ location.lat }}, {{ location.lon }}
+            </li>
+          </ul>
         </div>
         <button
           type="button"
@@ -118,6 +130,19 @@ defineEmits<{
 .transport-modes {
   color: #555;
   font-size: 0.85rem;
+}
+
+.stop-metadata,
+.child-stops {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.child-stops {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.15rem 0 0;
+  padding-left: 1rem;
 }
 
 .search-item code {

@@ -25,6 +25,8 @@ export interface Stop {
   name: string;
   stops: StopLocation[];
   transport_modes?: string[];
+  area_type?: string;
+  average_daily_stop_times?: number;
 }
 
 export interface StopLocation {
@@ -47,6 +49,8 @@ export interface StopLookupGroup {
   name: string;
   stops: StopLocation[];
   transport_modes?: string[];
+  area_type?: string;
+  average_daily_stop_times?: number;
 }
 
 export interface StopConfiguration {
