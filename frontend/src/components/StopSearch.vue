@@ -17,6 +17,9 @@
         <div>
           <strong>{{ stop.name }}</strong>
           <code>{{ stop.id }}</code>
+          <span v-if="stop.transport_modes?.length" class="transport-modes">
+            Trafikslag: {{ stop.transport_modes.join(', ') }}
+          </span>
         </div>
         <button
           type="button"
@@ -110,6 +113,11 @@ defineEmits<{
 .search-item > div {
   display: grid;
   gap: 0.25rem;
+}
+
+.transport-modes {
+  color: #555;
+  font-size: 0.85rem;
 }
 
 .search-item code {

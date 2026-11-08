@@ -18,6 +18,7 @@
             :stops="recentStops"
             :disabled="isSaving"
             @select="selectHistoryStop"
+            @clear="clearHistory"
           />
         </aside>
 
@@ -103,6 +104,7 @@ const {
   favoriteMessage,
   initialize: initializeSavedStops,
   removeFavorite,
+  clearHistory,
   selectStop: updateSavedStopsForSelection,
   toggleFavorite,
 } = useSavedStops(text => showMessage(text, 'error'))

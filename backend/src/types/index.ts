@@ -24,6 +24,7 @@ export interface Stop {
   id: string;
   name: string;
   stops: StopLocation[];
+  transport_modes?: string[];
 }
 
 export interface StopLocation {
@@ -45,6 +46,7 @@ export interface StopLookupGroup {
   id: string;
   name: string;
   stops: StopLocation[];
+  transport_modes?: string[];
 }
 
 export interface StopConfiguration {

@@ -15,6 +15,14 @@
         </button>
       </li>
     </ul>
+    <button
+      type="button"
+      class="clear-history-btn"
+      :disabled="stops.length === 0"
+      @click="$emit('clear')"
+    >
+      Rensa historik
+    </button>
   </section>
 </template>
 
@@ -28,6 +36,7 @@ defineProps<{
 
 defineEmits<{
   select: [stop: Stop]
+  clear: []
 }>()
 </script>
 
@@ -90,5 +99,26 @@ defineEmits<{
 .stop-select-btn code {
   color: #666;
   font-size: 0.8rem;
+}
+
+.clear-history-btn {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d5d9de;
+  border-radius: 5px;
+  background: white;
+  color: #555;
+  cursor: pointer;
+}
+
+.clear-history-btn:hover:not(:disabled) {
+  border-color: #b02a37;
+  background: #fff5f5;
+  color: #842029;
+}
+
+.clear-history-btn:disabled {
+  color: #999;
+  cursor: not-allowed;
 }
 </style>

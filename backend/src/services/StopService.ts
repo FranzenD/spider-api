@@ -18,7 +18,10 @@ function isStopLookupGroup(value: unknown): value is StopLookupGroup {
     typeof value.id === 'string' &&
     typeof value.name === 'string' &&
     Array.isArray(value.stops) &&
-    value.stops.every(isStopLocation)
+    value.stops.every(isStopLocation) &&
+    (!('transport_modes' in value) ||
+      (Array.isArray(value.transport_modes) &&
+        value.transport_modes.every(mode => typeof mode === 'string')))
   );
 }
 
@@ -57,10 +60,11 @@ export class StopService {
       throw new Error('Stop Lookup API returned an invalid response');
     }
 
-    const stops: Stop[] = result.stop_groups.map(({ id, name, stops }) => ({
+    const stops: Stop[] = result.stop_groups.map(({ id, name, stops, transport_modes }) => ({
       id,
       name,
       stops,
+      ...(transport_modes ? { transport_modes } : {}),
     }));
 
     return { stops };

@@ -36,7 +36,11 @@
           :key="group.key"
           class="destination-group"
         >
-          <h4 class="destination-heading">{{ group.destination }}</h4>
+          <h4 class="destination-heading">
+            {{ group.destination }}<span v-if="group.designations.length">
+              ({{ group.designations.join(', ') }})
+            </span>
+          </h4>
           <div class="traffic-grid">
             <div
               v-for="(departure, index) in group.departures"
@@ -83,18 +87,32 @@ defineEmits<{
 const departuresByDestination = computed(() => {
   const groups = new Map<
     string,
-    { key: string; destination: string; departures: NonNullable<typeof props.trafficData>['departures'] }
+    {
+      key: string
+      destination: string
+      departures: NonNullable<typeof props.trafficData>['departures']
+      designations: string[]
+    }
   >()
 
   for (const departure of props.trafficData?.departures ?? []) {
     const destination = departure.route.direction.trim() || 'Okänd destination'
     const key = destination.toLocaleLowerCase('sv-SE')
     const group = groups.get(key)
+    const designation = departure.route.designation.trim()
 
     if (group) {
       group.departures.push(departure)
+      if (designation && !group.designations.includes(designation)) {
+        group.designations.push(designation)
+      }
     } else {
-      groups.set(key, { key, destination, departures: [departure] })
+      groups.set(key, {
+        key,
+        destination,
+        departures: [departure],
+        designations: designation ? [designation] : [],
+      })
     }
   }
 

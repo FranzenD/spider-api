@@ -75,6 +75,11 @@ export const useSavedStops = (onStorageError: (message: string) => void) => {
     persistStops(RECENT_STOPS_STORAGE_KEY, recentStops.value)
   }
 
+  const clearHistory = (): void => {
+    recentStops.value = []
+    persistStops(RECENT_STOPS_STORAGE_KEY, recentStops.value)
+  }
+
   const removeFavorite = (areaId: string): void => {
     favorites.value = favorites.value.filter(stop => stop.id !== areaId)
     persistStops(FAVORITES_STORAGE_KEY, favorites.value)
@@ -124,6 +129,7 @@ export const useSavedStops = (onStorageError: (message: string) => void) => {
     favoriteMessage,
     initialize,
     removeFavorite,
+    clearHistory,
     selectStop,
     toggleFavorite,
   }
