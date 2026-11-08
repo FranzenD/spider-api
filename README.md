@@ -51,6 +51,7 @@ spider-api/
 ### Frontend (Vue 3)
 
 - **Admin View**: Stop search, stop selection and traffic data
+- Up to five browser-local stop favorites and a five-stop selection history for quick switching
 - Vue Router for navigation
 - Composition API with `<script setup>`
 - TypeScript for frontend application code and Vite configuration
