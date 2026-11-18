@@ -1,141 +1,287 @@
 <template>
   <div class="traffic-container">
     <div class="traffic-card">
-      <h2>Traffic Data Dashboard</h2>
+      <h2>Hållplatsadministration</h2>
       <p class="description">
-        Real-time traffic information from third-party API
+        Sök upp hållplatsen som ska användas för trafikvisningen.
       </p>
 
-      <div class="actions">
-        <button
-          @click="fetchTrafficData"
-          :disabled="isLoading"
-          class="fetch-btn"
-        >
-          {{ isLoading ? 'Loading...' : 'Fetch Traffic Data' }}
-        </button>
-      </div>
+      <div class="admin-layout">
+        <aside class="stop-sidebar" aria-label="Sparade hållplatser">
+          <Favorites
+            :stops="favorites"
+            :disabled="isSaving || isLoadingConfiguration"
+            @select="selectFavorite"
+            @remove="removeFavorite"
+          />
+          <History
+            :stops="recentStops"
+            :disabled="isSaving || isLoadingConfiguration"
+            @select="selectHistoryStop"
+            @clear="clearHistory"
+          />
+        </aside>
 
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
-      </div>
+        <div class="admin-content">
+          <section class="admin-panel">
+            <ConfiguredStop
+              :stop="configuredStop"
+              :is-favorite="isCurrentStopFavorite"
+              @toggle-favorite="toggleCurrentStopFavorite"
+            />
 
-      <div v-if="trafficData" class="traffic-data">
-        <div class="data-header">
-          <h3>Spindelvägen</h3>
-          <span class="timestamp">Uppdaterad: {{
-            formatTimestamp(trafficData.timestamp)
-          }}</span>
+            <StopSearch
+              v-model:query="searchQuery"
+              :results="searchResults"
+              :has-searched="hasSearched"
+              :is-searching="isSearching"
+              :is-saving="isSaving"
+              :selection-disabled="isLoadingConfiguration"
+              :error="searchError"
+              @select="selectSearchStop"
+            />
+
+            <form v-if="configuredStop" class="destination-form" @submit.prevent="saveDestination">
+              <label for="configured-destination">Destination för den externa appen</label>
+              <div class="destination-controls">
+                <select
+                  id="configured-destination"
+                  v-model="destinationDraft"
+                  :disabled="isSaving || isLoading || !destinations.length"
+                  required
+                >
+                  <option disabled value="">{{ isLoading ? 'Hämtar destinationer…' : 'Välj destination' }}</option>
+                  <option
+                    v-if="configuredStop.destination && !destinations.includes(configuredStop.destination)"
+                    :value="configuredStop.destination"
+                  >
+                    {{ configuredStop.destination }}
+                  </option>
+                  <option v-for="destination in destinations" :key="destination" :value="destination">
+                    {{ destination }}
+                  </option>
+                </select>
+                <button type="submit" :disabled="!canSaveDestination">Spara destination</button>
+              </div>
+              <p v-if="trafficData && !isLoading && !destinations.length" class="destination-hint">
+                Inga destinationer hittades bland hållplatsens aktuella avgångar.
+              </p>
+            </form>
+
+            <DismissibleMessage
+              v-if="message"
+              :class="['message', messageType]"
+              :text="message"
+              :role="messageType === 'error' ? 'alert' : 'status'"
+              :duration-ms="MESSAGE_DURATION_MS"
+              :reset-key="messageId"
+              @dismiss="dismissMessage"
+            />
+          </section>
+
+          <TrafficDepartures
+            :traffic-data="trafficData"
+            :stop-name="configuredStop?.stopName || `Hållplats ${configuredStop?.areaId ?? ''}`"
+            :selected-destination="configuredStop?.destination"
+            :has-configured-stop="Boolean(configuredStop)"
+            :is-loading="isLoading || isLoadingConfiguration"
+            :is-saving="isSaving"
+            :traffic-error="trafficError"
+            :traffic-success="trafficSuccess"
+            :favorite-message="favoriteMessage"
+            @refresh="fetchTrafficData()"
+            @dismiss-success="dismissTrafficSuccess"
+            @dismiss-favorite="dismissFavoriteMessage"
+          />
         </div>
-
-        <div class="traffic-grid">
-          <div
-            v-for="(departure, index) in departures"
-            :key="index"
-            :class="['traffic-item']"
-          >
-            <div class="location">
-              <h4>{{ formatTimestamp(departure.realtime) }}</h4>
-              <p>{{ showDepartureInMinutesFromNow(departure.realtime) }}</p>
-              <p>{{ departure.route.direction }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="!isLoading" class="no-data">
-        <p>Click "Fetch Traffic Data" to load current traffic information</p>
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import ConfiguredStop from '../components/ConfiguredStop.vue'
+import DismissibleMessage from '../components/DismissibleMessage.vue'
+import Favorites from '../components/Favorites.vue'
+import History from '../components/History.vue'
+import StopSearch from '../components/StopSearch.vue'
+import TrafficDepartures from '../components/TrafficDepartures.vue'
+import { useSavedStops } from '../composables/useSavedStops'
+import { useStopSearch } from '../composables/useStopSearch'
+import { useStopApi } from '../composables/useStopApi'
+import { useTrafficData } from '../composables/useTrafficData'
+import type { MessageType, Stop, StopConfiguration } from '../types'
 
-const router = useRouter()
-
-// Reactive state
-const trafficData = ref(null)
-const isLoading = ref(false)
+const configuredStop = ref<StopConfiguration | null>(null)
+const configurationController = new AbortController()
+const isLoadingConfiguration = ref(true)
+const isSaving = ref(false)
+const MESSAGE_DURATION_MS = 5000
 const message = ref('')
-const messageType = ref('')
+const messageType = ref<MessageType>('success')
+const messageId = ref(0)
+const dismissMessage = (): void => {
+  message.value = ''
+}
 
-// Computed properties
-const departures = computed(() => {
-  return trafficData.value ? trafficData.value.departures : []
+const showMessage = (text: string, type: MessageType): void => {
+  message.value = text
+  messageType.value = type
+  messageId.value += 1
+}
+
+const {
+  query: searchQuery,
+  results: searchResults,
+  hasSearched,
+  isSearching,
+  error: searchError,
+  cancel: cancelStopSearch,
+} = useStopSearch()
+
+const {
+  favorites,
+  recentStops,
+  favoriteMessage,
+  dismissFavoriteMessage,
+  initialize: initializeSavedStops,
+  removeFavorite,
+  clearHistory,
+  selectStop: updateSavedStopsForSelection,
+  toggleFavorite,
+} = useSavedStops(text => showMessage(text, 'error'))
+
+const isCurrentStopFavorite = computed(() =>
+  configuredStop.value
+    ? favorites.value.some(stop => stop.id === configuredStop.value?.areaId)
+    : false
+)
+
+const {
+  data: trafficData,
+  isLoading,
+  error: trafficError,
+  success: trafficSuccess,
+  dismissSuccess: dismissTrafficSuccess,
+  fetchTrafficData,
+  cancel: cancelTrafficRequest,
+} = useTrafficData(() => configuredStop.value?.areaId)
+const stopApi = useStopApi()
+const destinationDraft = ref('')
+const destinations = computed(() => {
+  const names = new Map<string, string>()
+  const saved = configuredStop.value?.destination
+  for (const departure of trafficData.value?.departures ?? []) {
+    const direction = departure.route.direction.trim()
+    if (!direction) continue
+    const key = direction.toLowerCase()
+    names.set(key, saved?.toLowerCase() === key ? saved : direction)
+  }
+  return [...names.values()].sort((a, b) => a.localeCompare(b, 'sv-SE'))
+})
+const canSaveDestination = computed(() =>
+  !isSaving.value &&
+  !isLoading.value &&
+  destinationDraft.value !== configuredStop.value?.destination &&
+  destinations.value.includes(destinationDraft.value)
+)
+
+watch(configuredStop, stop => {
+  destinationDraft.value = stop?.destination ?? ''
 })
 
-// Methods
-const fetchTrafficData = async () => {
-  isLoading.value = true
-  message.value = ''
+const saveDestination = async (): Promise<void> => {
+  const stop = configuredStop.value
+  if (!stop || !canSaveDestination.value) return
 
+  isSaving.value = true
   try {
-    const response = await fetch('http://localhost:3005/api/traffic', {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (response.ok) {
-      trafficData.value = await response.json()
-      showMessage('Traffic data loaded successfully', 'success')
-    } else if (response.status === 401) {
-      showMessage(
-        'Authentication required. Please login first.',
-        'error'
-      )
-      // Redirect to login after a delay
-      setTimeout(() => {
-        router.push('/')
-      }, 2000)
-    } else {
-      const errorData = await response.json()
-      showMessage(
-        errorData.error || 'Failed to fetch traffic data',
-        'error'
-      )
-    }
+    const config = await stopApi.saveStopDestination(
+      stop.areaId, destinationDraft.value, configurationController.signal
+    )
+    configuredStop.value = config
+    showMessage(`Destinationen ${config.destination} har sparats.`, 'success')
   } catch (error) {
-    console.error('Fetch error:', error)
+    if (configurationController.signal.aborted) return
+    console.error('Stop destination save failed:', error)
     showMessage(
-      'Network error. Please check if the backend server is running.',
+      error instanceof Error ? error.message : 'Kunde inte spara destinationen',
       'error'
     )
   } finally {
-    isLoading.value = false
+    isSaving.value = false
   }
 }
 
-const formatTimestamp = (timestamp) => {
-  return new Date(timestamp).toLocaleTimeString('sv-SE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
+const loadConfiguration = async (): Promise<boolean> => {
+  try {
+    configuredStop.value = await stopApi.getStopConfiguration(configurationController.signal)
+    return true
+  } catch (error) {
+    if (configurationController.signal.aborted) return false
+    console.error('Configuration load failed:', error)
+    showMessage(
+      error instanceof Error ? error.message : 'Kunde inte läsa konfigurationen',
+      'error'
+    )
+    return false
+  } finally {
+    isLoadingConfiguration.value = false
+  }
 }
 
-const showMessage = (text, type) => {
-  message.value = text
-  messageType.value = type
+const selectStop = async (
+  stop: Stop,
+  source: 'search' | 'favorite' | 'history'
+): Promise<void> => {
+  if (isSaving.value || isLoadingConfiguration.value) return
 
-  // Clear message after 5 seconds
-  setTimeout(() => {
-    message.value = ''
-  }, 5000)
+  cancelTrafficRequest()
+  cancelStopSearch()
+  isSaving.value = true
+  try {
+    configuredStop.value = await stopApi.saveStopConfiguration(stop, configurationController.signal)
+    updateSavedStopsForSelection(stop, source)
+    searchQuery.value = ''
+    showMessage(`Hållplatsen ${stop.name} (${stop.id}) har sparats.`, 'success')
+    await fetchTrafficData(false)
+  } catch (error) {
+    if (configurationController.signal.aborted) return
+    console.error('Stop configuration save failed:', error)
+    showMessage(
+      error instanceof Error ? error.message : 'Kunde inte spara hållplatsen',
+      'error'
+    )
+  } finally {
+    isSaving.value = false
+  }
 }
 
-const showDepartureInMinutesFromNow = (departureTime) => {
-  const now = new Date()
-  const departure = new Date(departureTime)
-  const diffMs = departure - now
-  const diffMins = Math.round(diffMs / 60000)
-  return diffMins > 0 ? `${diffMins} min` : 'Nu'
+const selectSearchStop = (stop: Stop): void => {
+  void selectStop(stop, 'search')
 }
+
+const selectFavorite = (stop: Stop): void => {
+  void selectStop(stop, 'favorite')
+}
+
+const selectHistoryStop = (stop: Stop): void => {
+  void selectStop(stop, 'history')
+}
+
+const toggleCurrentStopFavorite = (): void => {
+  if (configuredStop.value) toggleFavorite(configuredStop.value)
+}
+
+onMounted(async () => {
+  initializeSavedStops()
+  if (await loadConfiguration()) await fetchTrafficData(false)
+})
+
+onBeforeUnmount(() => {
+  configurationController.abort()
+})
 </script>
 
 <style scoped>
@@ -169,33 +315,84 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   margin-bottom: 2rem;
 }
 
-.actions {
-  text-align: center;
-  margin-bottom: 2rem;
+.admin-panel {
+  max-width: 720px;
+  margin: 0 auto 2rem;
+  padding: 1.5rem;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  background: #f8f9fa;
 }
 
-.fetch-btn {
-  background: #667eea;
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.stop-sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-content {
+  min-width: 0;
+}
+
+.destination-form {
+  margin-top: 1rem;
+}
+
+.destination-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.destination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.destination-controls select,
+.destination-controls button {
+  padding: 0.6rem 0.75rem;
+  border-radius: 5px;
+  font: inherit;
+}
+
+.destination-controls select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #d5d9de;
+  background: white;
+  color: #333;
+}
+
+.destination-controls button {
+  border: 0;
+  background: #5263cb;
   color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.3s;
 }
 
-.fetch-btn:hover:not(:disabled) {
-  background: #5a6fd8;
+.destination-controls button:disabled {
+  background: #e5e7eb;
+  color: #666;
+  cursor: default;
 }
 
-.fetch-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+.destination-hint {
+  margin: 0.5rem 0 0;
+  color: #666;
+  font-size: 0.9rem;
 }
 
 .message {
+  margin-top: 0.75rem;
   margin-bottom: 1rem;
   padding: 0.75rem;
   border-radius: 4px;
@@ -214,103 +411,13 @@ const showDepartureInMinutesFromNow = (departureTime) => {
   border: 1px solid #f5c6cb;
 }
 
-.traffic-data {
-  margin-top: 2rem;
-}
+@media (max-width: 600px) {
+  .traffic-card {
+    padding: 1.25rem;
+  }
 
-.data-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #eee;
-}
-
-.data-header h3 {
-  margin: 0;
-  color: #333;
-}
-
-.timestamp {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.traffic-grid {
-  display: flex;
-  flex-direction: column;
-  /* grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); */
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.traffic-item {
-  background: #f8f9fa;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
-  padding: 1.5rem;
-  transition: all 0.3s;
-}
-
-.traffic-item.congestion-light {
-  border-color: #28a745;
-  background: #f8fff9;
-}
-
-.traffic-item.congestion-moderate {
-  border-color: #ffc107;
-  background: #fffef8;
-}
-
-.traffic-item.congestion-heavy {
-  border-color: #dc3545;
-  background: #fff8f8;
-}
-
-.location h4 {
-  margin: 0 0 1rem 0;
-  color: #333;
-  font-size: 1.1rem;
-}
-
-.metrics {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.metric {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.metric .label {
-  font-weight: 500;
-  color: #666;
-}
-
-.metric .value {
-  font-weight: 600;
-  color: #333;
-}
-
-.data-footer {
-  text-align: center;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-  color: #666;
-}
-
-.no-data {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: #666;
-}
-
-.no-data p {
-  margin: 0;
-  font-size: 1.1rem;
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

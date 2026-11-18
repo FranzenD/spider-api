@@ -1,67 +1,62 @@
-export interface AuthenticatedUser {
-  userId: string;
-  username?: string;
-  authMethod: 'basic_auth' | 'demo_token';
-  timestamp: number;
-}
-
-export interface CredentialMap {
-  [username: string]: string;
-}
-
 export interface TrafficDeparture {
   realtime: string;
+  canceled?: boolean;
   nextDepartureIn: string;
   route: {
     direction: string;
     designation: string;
   };
-  destination: string;
+  destination?: string;
   expected?: string;
 }
 
 export interface TrafficApiResponse {
   departures: TrafficDeparture[];
   meta?: {
-    requested_by?: string;
-    auth_method?: string;
     timestamp: string;
   };
 }
 
 export interface SingleDepartureResponse {
   departure: TrafficDeparture;
-  meta?: {
-    requested_by?: string;
-    auth_method?: string;
-    timestamp?: string;
-  };
 }
 
-export interface StandardApiResponse<T = unknown> {
-  success: boolean;
-  message?: string;
-  data?: T;
-  error?: string;
+export interface Stop {
+  id: string;
+  name: string;
+  stops: StopLocation[];
+  transport_modes?: string[];
+  area_type?: string;
+  average_daily_stop_times?: number;
 }
 
-export interface TokenAuthRequest {
-  token: string;
+export interface StopLocation {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
 }
 
-export interface JwtPayload {
-  userId: string;
-  username?: string;
-  token?: string;
-  authMethod: 'basic_auth' | 'demo_token';
-  timestamp: number;
+export interface StopSearchResponse {
+  stops: Stop[];
 }
 
-// Extend Express Request type
-declare global {
-  namespace Express {
-    interface Request {
-      user?: JwtPayload;
-    }
-  }
+export interface StopLookupResponse {
+  stop_groups: StopLookupGroup[];
+}
+
+export interface StopLookupGroup {
+  id: string;
+  name: string;
+  stops: StopLocation[];
+  transport_modes?: string[];
+  area_type?: string;
+  average_daily_stop_times?: number;
+}
+
+export interface StopConfiguration {
+  areaId: string;
+  stopName?: string;
+  stops?: StopLocation[];
+  destination?: string;
 }

@@ -21,9 +21,16 @@
         </button>
       </form>
       
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
-      </div>
+      <DismissibleMessage
+        v-if="message"
+        :class="['message', messageType]"
+        :text="message"
+        :role="messageType === 'error' ? 'alert' : 'status'"
+        :duration-ms="5000"
+        :reset-key="messageId"
+        dismiss-label="Dismiss message"
+        @dismiss="message = ''"
+      />
       
       <div class="demo-tokens">
         <h4>Demo Tokens (for testing):</h4>
@@ -37,23 +44,31 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { API_BASE_URL } from '../api'
+import DismissibleMessage from '../components/DismissibleMessage.vue'
+import type { ApiErrorResponse, MessageType } from '../types'
 
 const router = useRouter()
-
-// Define emits
-const emit = defineEmits(['authenticated'])
-
-// Reactive state
+const emit = defineEmits<{
+  authenticated: []
+}>()
 const token = ref('')
 const isLoading = ref(false)
 const message = ref('')
-const messageType = ref('')
+const messageType = ref<MessageType>('error')
+const messageId = ref(0)
+let redirectTimer: ReturnType<typeof setTimeout> | undefined
 
-// Methods
-const authenticate = async () => {
+const getApiError = (data: unknown): string | undefined => {
+  if (typeof data !== 'object' || data === null || !('error' in data)) return undefined
+  const error = (data as ApiErrorResponse).error
+  return typeof error === 'string' ? error : undefined
+}
+
+const authenticate = async (): Promise<void> => {
   if (!token.value.trim()) {
     showMessage('Please enter a token', 'error')
     return
@@ -63,7 +78,7 @@ const authenticate = async () => {
   message.value = ''
   
   try {
-    const response = await fetch('http://localhost:3000/auth/token', {
+    const response = await fetch(`${API_BASE_URL}/auth/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,18 +89,16 @@ const authenticate = async () => {
       })
     })
     
-    const data = await response.json()
-    
+    const data: unknown = await response.json()
+
     if (response.ok) {
       showMessage('Authentication successful! Redirecting...', 'success')
       emit('authenticated')
-      
-      // Redirect to traffic view after a short delay
-      setTimeout(() => {
+      redirectTimer = setTimeout(() => {
         router.push('/traffic')
       }, 1500)
     } else {
-      showMessage(data.error || 'Authentication failed', 'error')
+      showMessage(getApiError(data) || 'Authentication failed', 'error')
     }
   } catch (error) {
     console.error('Authentication error:', error)
@@ -95,15 +108,15 @@ const authenticate = async () => {
   }
 }
 
-const showMessage = (text, type) => {
+const showMessage = (text: string, type: MessageType): void => {
   message.value = text
   messageType.value = type
-  
-  // Clear message after 5 seconds
-  setTimeout(() => {
-    message.value = ''
-  }, 5000)
+  messageId.value += 1
 }
+
+onBeforeUnmount(() => {
+  if (redirectTimer) clearTimeout(redirectTimer)
+})
 </script>
 
 <style scoped>

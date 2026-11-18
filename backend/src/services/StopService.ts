@@ -1,0 +1,110 @@
+import type {
+  Stop,
+  StopLookupResponse,
+  StopLookupGroup,
+  StopLocation,
+  StopSearchResponse,
+  TrafficApiResponse,
+} from '../types/index.js';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isStopLookupGroup(value: unknown): value is StopLookupGroup {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    Array.isArray(value.stops) &&
+    value.stops.every(isStopLocation) &&
+    (!('transport_modes' in value) ||
+      (Array.isArray(value.transport_modes) &&
+        value.transport_modes.every(mode => typeof mode === 'string'))) &&
+    (!('area_type' in value) || typeof value.area_type === 'string') &&
+    (!('average_daily_stop_times' in value) ||
+      (typeof value.average_daily_stop_times === 'number' &&
+        Number.isFinite(value.average_daily_stop_times)))
+  );
+}
+
+function isStopLocation(value: unknown): value is StopLocation {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.lat === 'number' &&
+    typeof value.lon === 'number'
+  );
+}
+
+function isStopLookupResponse(value: unknown): value is StopLookupResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.stop_groups) &&
+    value.stop_groups.every(isStopLookupGroup)
+  );
+}
+
+export class StopService {
+  static async searchStops(query: string): Promise<StopSearchResponse> {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error('API key not configured');
+    }
+    const url = new URL(
+      `https://realtime-api.trafiklab.se/v1/stops/name/${encodeURIComponent(query)}/`
+    );
+    url.searchParams.set('key', apiKey);
+
+    const result = await this.fetchJson(url, 'Failed to search stops');
+    if (!isStopLookupResponse(result)) {
+      throw new Error('Stop Lookup API returned an invalid response');
+    }
+
+    const stops: Stop[] = result.stop_groups.map(
+      ({ id, name, stops, transport_modes, area_type, average_daily_stop_times }) => ({
+        id,
+        name,
+        stops,
+        ...(transport_modes ? { transport_modes } : {}),
+        ...(area_type ? { area_type } : {}),
+        ...(average_daily_stop_times !== undefined ? { average_daily_stop_times } : {}),
+      })
+    );
+
+    return { stops };
+  }
+
+  static async getTraffic(areaId: string): Promise<TrafficApiResponse> {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error('API key not configured');
+    }
+    const url = new URL(
+      `https://realtime-api.trafiklab.se/v1/departures/${encodeURIComponent(areaId)}`
+    );
+    url.searchParams.set('key', apiKey);
+    return (await this.fetchJson(url, 'Failed to fetch traffic')) as TrafficApiResponse;
+  }
+
+  private static async fetchJson(url: URL, failureMessage: string): Promise<unknown> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let status: number | undefined;
+    try {
+      const response = await globalThis.fetch(url, { signal: controller.signal });
+      if (response.ok) return await response.json();
+      status = response.status;
+      await response.body?.cancel();
+    } catch {
+      if (controller.signal.aborted) {
+        throw new DOMException('Trafiklab request timed out', 'AbortError');
+      }
+      // Transport and JSON errors may contain the request URL or upstream content.
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    throw new Error(status === undefined ? failureMessage : `${failureMessage} (HTTP ${status})`);
+  }
+}
