@@ -104,6 +104,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { TimedMessage, TrafficApiResponse, TrafficDeparture } from '../types'
+import { parseDepartureTime } from '../departureTime'
 import DismissibleMessage from './DismissibleMessage.vue'
 
 const props = defineProps<{
@@ -140,7 +141,8 @@ type TimedDeparture = TrafficDeparture & { timestampMs: number }
 
 const timedDepartures = computed(() =>
   (props.trafficData?.departures ?? [])
-    .map(departure => ({ ...departure, timestampMs: Date.parse(departure.realtime) }))
+    .filter(departure => departure.canceled !== true)
+    .map(departure => ({ ...departure, timestampMs: parseDepartureTime(departure.realtime) }))
     .filter(departure => Number.isFinite(departure.timestampMs))
     .sort((a, b) => a.timestampMs - b.timestampMs)
 )
@@ -194,7 +196,7 @@ const formatTimestamp = (timestamp: string | number): string => {
   const date = new Date(typeof timestamp === 'string' ? Date.parse(timestamp) : timestamp)
   return Number.isNaN(date.getTime())
     ? 'Okänd tid'
-    : date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : date.toLocaleTimeString('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 onMounted(() => {

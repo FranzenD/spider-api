@@ -1,4 +1,5 @@
 export interface TrafficDeparture {
+  canceled?: boolean
   realtime: string
   route: {
     direction: string

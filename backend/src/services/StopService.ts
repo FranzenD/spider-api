@@ -1,4 +1,3 @@
-import fetch, { type Response as FetchResponse } from 'node-fetch';
 import type {
   Stop,
   StopLookupResponse,
@@ -58,8 +57,7 @@ export class StopService {
     );
     url.searchParams.set('key', apiKey);
 
-    const response = await this.fetchWithTimeout(url, 'Failed to search stops');
-    const result: unknown = await response.json();
+    const result = await this.fetchJson(url, 'Failed to search stops');
     if (!isStopLookupResponse(result)) {
       throw new Error('Stop Lookup API returned an invalid response');
     }
@@ -87,21 +85,26 @@ export class StopService {
       `https://realtime-api.trafiklab.se/v1/departures/${encodeURIComponent(areaId)}`
     );
     url.searchParams.set('key', apiKey);
-    const response = await this.fetchWithTimeout(url, 'Failed to fetch traffic');
-    return (await response.json()) as TrafficApiResponse;
+    return (await this.fetchJson(url, 'Failed to fetch traffic')) as TrafficApiResponse;
   }
 
-  private static async fetchWithTimeout(url: URL, failureMessage: string): Promise<FetchResponse> {
+  private static async fetchJson(url: URL, failureMessage: string): Promise<unknown> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let status: number | undefined;
     try {
-      const response = await fetch(url.toString(), { signal: controller.signal });
-      if (!response.ok) {
-        throw new Error(`${failureMessage}: ${response.status} ${response.statusText}`);
+      const response = await globalThis.fetch(url, { signal: controller.signal });
+      if (response.ok) return await response.json();
+      status = response.status;
+      await response.body?.cancel();
+    } catch {
+      if (controller.signal.aborted) {
+        throw new DOMException('Trafiklab request timed out', 'AbortError');
       }
-      return response;
+      // Transport and JSON errors may contain the request URL or upstream content.
     } finally {
       clearTimeout(timeoutId);
     }
+    throw new Error(status === undefined ? failureMessage : `${failureMessage} (HTTP ${status})`);
   }
 }

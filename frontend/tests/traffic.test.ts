@@ -3,6 +3,7 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { parseDepartureTime } from '../src/departureTime'
 import StopSearch from '../src/components/StopSearch.vue'
 import TrafficDepartures from '../src/components/TrafficDepartures.vue'
 import { useStopApi } from '../src/composables/useStopApi'
@@ -289,7 +290,8 @@ it('shows the next three departures per destination and replaces them as they pa
         departures: [
           ...trafficFor('Slussen', '2030-01-01T12:03:00Z').departures,
           ...trafficFor('Slussen', '2030-01-01T12:02:00Z').departures,
-          ...trafficFor('Slussen', '2030-01-01T12:00:00Z').departures,
+          { ...trafficFor('Slussen', '2030-01-01T11:59:05Z').departures[0]!, canceled: true },
+          ...trafficFor('Slussen', '2030-01-01T13:00:00').departures,
           ...trafficFor('Slussen', '2030-01-01T12:01:00Z').departures,
           ...trafficFor('Älta', '2030-01-01T12:02:30Z').departures,
           ...trafficFor('Passerad', '2030-01-01T11:58:00Z').departures,
@@ -332,4 +334,12 @@ it('shows the next three departures per destination and replaces them as they pa
   await nextTick()
   expect(displayedDepartures()).toEqual([])
   expect(departures.get('.no-departures').text()).toBe('Inga kommande avgångar för den här hållplatsen.')
+})
+
+it.each([
+  ['2030-01-01T13:00:00', '2030-01-01T12:00:00Z'],
+  ['2030-07-01T13:00:00.500', '2030-07-01T11:00:00.500Z'],
+  ['2030-07-01T13:00:00+03:00', '2030-07-01T10:00:00Z'],
+])('interprets departure time %s as %s', (value, expected) => {
+  expect(parseDepartureTime(value)).toBe(Date.parse(expected))
 })
