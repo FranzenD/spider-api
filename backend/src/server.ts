@@ -1,17 +1,16 @@
 import express, { Request, Response } from 'express';
-import { createSingleDepartureResponse, getDeparturesByDirection } from './utils/utils.js';
+import {
+  createSingleDepartureResponse,
+  getDeparturesByDirection,
+  getNextDepartureByDirection,
+} from './utils/utils.js';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import {
-  TrafficApiResponse,
-  TrafficDeparture,
-  SingleDepartureResponse,
-  StopConfiguration,
-} from './types/index.js';
+import type { TrafficApiResponse, StopConfiguration } from './types/index.js';
 import { StopService } from './services/StopService.js';
 
 dotenv.config();
@@ -66,9 +65,17 @@ function isAreaId(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
 }
 
-function getStopConfiguration(): StopConfiguration {
+function isDestination(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 200;
+}
+
+function getStopConfiguration(): {
+  activeStop: StopConfiguration;
+  destinationsByAreaId: Map<string, string>;
+} {
+  const destinationsByAreaId = new Map<string, string>();
   if (!fs.existsSync(CONFIG_PATH)) {
-    return { areaId: DEFAULT_AREA_ID };
+    return { activeStop: { areaId: DEFAULT_AREA_ID }, destinationsByAreaId };
   }
 
   const config: unknown = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
@@ -81,13 +88,34 @@ function getStopConfiguration(): StopConfiguration {
     throw new Error('Stop configuration is invalid');
   }
 
-  return {
+  if (
+    'destinationsByAreaId' in config &&
+    typeof config.destinationsByAreaId === 'object' &&
+    config.destinationsByAreaId !== null &&
+    !Array.isArray(config.destinationsByAreaId)
+  ) {
+    for (const [areaId, destination] of Object.entries(config.destinationsByAreaId)) {
+      if (isAreaId(areaId) && isDestination(destination)) {
+        destinationsByAreaId.set(areaId, destination.trim());
+      }
+    }
+  }
+
+  // Preserve the destination from configurations saved before destinations were stored per stop.
+  if ('destination' in config && isDestination(config.destination)) {
+    destinationsByAreaId.set(config.areaId, config.destination.trim());
+  }
+
+  const destination = destinationsByAreaId.get(config.areaId);
+  const activeStop: StopConfiguration = {
     areaId: config.areaId,
     ...('stopName' in config && typeof config.stopName === 'string'
       ? { stopName: config.stopName }
       : {}),
     ...('stops' in config && isStopLocations(config.stops) ? { stops: config.stops } : {}),
+    ...(destination ? { destination } : {}),
   };
+  return { activeStop, destinationsByAreaId };
 }
 
 function isStopLocations(value: unknown): value is StopConfiguration['stops'] {
@@ -111,16 +139,37 @@ function isStopLocations(value: unknown): value is StopConfiguration['stops'] {
   );
 }
 
-function saveStopConfiguration(config: StopConfiguration): void {
+function saveStopConfiguration(
+  activeStop: StopConfiguration,
+  destinationsByAreaId: Map<string, string>
+): void {
   const temporaryPath = `${CONFIG_PATH}.${process.pid}.tmp`;
-  fs.writeFileSync(temporaryPath, JSON.stringify(config, null, 2), 'utf-8');
+  const stored = { ...activeStop, destinationsByAreaId: Object.fromEntries(destinationsByAreaId) };
+  fs.writeFileSync(temporaryPath, JSON.stringify(stored, null, 2), 'utf-8');
   fs.renameSync(temporaryPath, CONFIG_PATH);
 }
 
 app.get('/api/traffic/:direction?', async (req: Request, res: Response): Promise<void> => {
   try {
-    const direction: string | undefined = req.params.direction;
-    const { areaId } = getStopConfiguration();
+    const explicitDirection: string | undefined = req.params.direction;
+    const requestedAreaId = req.query.areaId;
+    if (requestedAreaId !== undefined && !isAreaId(requestedAreaId)) {
+      res.status(400).json({ error: 'A valid stop areaId is required' });
+      return;
+    }
+    const config: StopConfiguration =
+      requestedAreaId === undefined
+        ? getStopConfiguration().activeStop
+        : { areaId: requestedAreaId };
+    const { areaId } = config;
+    const showAll = req.query.all === 'true' || requestedAreaId !== undefined;
+    const direction = explicitDirection ?? (showAll ? undefined : config.destination);
+
+    if (!direction && !showAll) {
+      res.status(409).json({ error: 'No destination configured for the selected stop' });
+      return;
+    }
+
     const trafficData = await StopService.getTraffic(areaId);
 
     if (!Array.isArray(trafficData.departures)) {
@@ -129,21 +178,18 @@ app.get('/api/traffic/:direction?', async (req: Request, res: Response): Promise
       return;
     }
 
-    let singleDeparture: TrafficDeparture | null = null;
-
     if (direction) {
-      singleDeparture = getDeparturesByDirection(trafficData.departures, direction)[0];
+      const singleDeparture = explicitDirection
+        ? getDeparturesByDirection(trafficData.departures, direction)[0]
+        : getNextDepartureByDirection(trafficData.departures, direction);
       if (!singleDeparture) {
-        res.status(400).json({
+        res.status(explicitDirection ? 400 : 404).json({
           error: `No departures found for direction: ${direction}`,
         });
         return;
       }
 
-      const singleDepartureResponse: SingleDepartureResponse =
-        createSingleDepartureResponse(singleDeparture);
-
-      res.json(singleDepartureResponse);
+      res.json(createSingleDepartureResponse(singleDeparture));
       return;
     }
 
@@ -203,14 +249,22 @@ app.get('/api/stops/search', async (req: Request, res: Response): Promise<void> 
 
 app.get('/api/stops/config', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const config = getStopConfiguration();
+    let config = getStopConfiguration().activeStop;
     if (!config.stops?.length && config.stopName && process.env.API_KEY) {
       try {
         const searchResults = await StopService.searchStops(config.stopName);
         const matchingStop = searchResults.stops.find(stop => stop.id === config.areaId);
-        if (matchingStop?.stops.length) {
-          config.stops = matchingStop.stops;
-          saveStopConfiguration(config);
+        const { activeStop: latest, destinationsByAreaId } = getStopConfiguration();
+        if (
+          matchingStop?.stops.length &&
+          latest.areaId === config.areaId &&
+          latest.stopName === config.stopName &&
+          !latest.stops?.length
+        ) {
+          config = { ...latest, stops: matchingStop.stops };
+          saveStopConfiguration(config, destinationsByAreaId);
+        } else {
+          config = latest;
         }
       } catch (error) {
         logger.warn(
@@ -241,19 +295,67 @@ app.put('/api/stops/config', (req: Request, res: Response): void => {
     return;
   }
 
-  const config: StopConfiguration = {
-    areaId,
-    ...(typeof stopName === 'string' && stopName.trim() ? { stopName: stopName.trim() } : {}),
-    ...(stops ? { stops } : {}),
-  };
-
   try {
-    saveStopConfiguration(config);
+    const { destinationsByAreaId } = getStopConfiguration();
+    const destination = destinationsByAreaId.get(areaId);
+    const config: StopConfiguration = {
+      areaId,
+      ...(typeof stopName === 'string' && stopName.trim() ? { stopName: stopName.trim() } : {}),
+      ...(stops ? { stops } : {}),
+      ...(destination ? { destination } : {}),
+    };
+    saveStopConfiguration(config, destinationsByAreaId);
     logger.info({ areaId }, 'Stop configuration updated');
     res.json(config);
   } catch (error) {
     logger.error({ err: error }, 'Error saving stop configuration');
     res.status(500).json({ error: 'Failed to save stop configuration' });
+  }
+});
+
+app.put('/api/stops/config/destination', async (req: Request, res: Response): Promise<void> => {
+  const { areaId, destination } = req.body ?? {};
+  if (!isAreaId(areaId) || !isDestination(destination)) {
+    res.status(400).json({ error: 'Ange en giltig hållplats och destination.' });
+    return;
+  }
+
+  try {
+    const { activeStop: current } = getStopConfiguration();
+    if (current.areaId !== areaId) {
+      res.status(409).json({ error: 'Den aktiva hållplatsen har ändrats. Ladda om sidan.' });
+      return;
+    }
+
+    const traffic = await StopService.getTraffic(areaId);
+    if (!Array.isArray(traffic.departures)) {
+      res.status(502).json({ error: 'Kunde inte läsa hållplatsens destinationer.' });
+      return;
+    }
+    const match = getDeparturesByDirection(traffic.departures, destination)[0];
+    if (!match) {
+      res
+        .status(422)
+        .json({ error: 'Destinationen finns inte bland hållplatsens aktuella avgångar.' });
+      return;
+    }
+
+    // Another request may have changed the configuration while Trafiklab responded.
+    const { activeStop: latest, destinationsByAreaId } = getStopConfiguration();
+    if (latest.areaId !== areaId) {
+      res.status(409).json({ error: 'Den aktiva hållplatsen har ändrats. Ladda om sidan.' });
+      return;
+    }
+
+    const savedDestination = match.route.direction.trim();
+    destinationsByAreaId.set(areaId, savedDestination);
+    const config = { ...latest, destination: savedDestination };
+    saveStopConfiguration(config, destinationsByAreaId);
+    res.json(config);
+  } catch (error) {
+    logger.error({ err: error, areaId }, 'Error saving stop destination');
+    const timedOut = error instanceof Error && error.name === 'AbortError';
+    res.status(timedOut ? 504 : 500).json({ error: 'Kunde inte spara destinationen.' });
   }
 });
 

@@ -1,7 +1,7 @@
 <template>
   <section class="sidebar-section">
     <h3>Favoriter</h3>
-    <p v-if="stops.length === 0" class="sidebar-empty">Inga favoriter ännu.</p>
+    <DismissibleMessage v-if="stops.length === 0" class="sidebar-empty" text="Inga favoriter ännu." />
     <ul v-else class="stop-list">
       <li v-for="stop in stops" :key="stop.id" class="stop-list-item">
         <button
@@ -11,7 +11,6 @@
           @click="$emit('select', stop)"
         >
           <strong>{{ stop.name }}</strong>
-          <code>{{ stop.id }}</code>
         </button>
         <button
           type="button"
@@ -28,6 +27,7 @@
 
 <script setup lang="ts">
 import type { Stop } from '../types'
+import DismissibleMessage from './DismissibleMessage.vue'
 
 defineProps<{
   stops: Stop[]
@@ -77,7 +77,6 @@ defineEmits<{
 .stop-select-btn {
   display: grid;
   flex: 1;
-  gap: 0.25rem;
   padding: 0.65rem;
   border: 1px solid #e1e4e8;
   border-radius: 5px;
@@ -94,11 +93,6 @@ defineEmits<{
 
 .stop-select-btn:disabled {
   cursor: wait;
-}
-
-.stop-select-btn code {
-  color: #666;
-  font-size: 0.8rem;
 }
 
 .stop-remove-btn {

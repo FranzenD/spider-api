@@ -5,21 +5,34 @@ import type {
   StopSearchResponse,
   TrafficApiResponse,
 } from '../types'
+import { isStopConfiguration, isStopSearchResponse, isTrafficApiResponse } from '../validation'
 import { getApiError } from './useApiError'
 
 const requestJson = async <T>(
   path: string,
   options: RequestInit,
-  failureMessage: string
+  failureMessage: string,
+  isValid: (data: unknown) => data is T
 ): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${path}`, options)
-  const data: unknown = await response.json()
+  let response: Response
+  let data: unknown
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, options)
+    data = await response.json()
+  } catch (error) {
+    if (options.signal?.aborted) throw error
+    throw new Error(failureMessage)
+  }
 
   if (!response.ok) {
     throw new Error(getApiError(data) || failureMessage)
   }
 
-  return data as T
+  if (!isValid(data)) {
+    throw new Error(`${failureMessage}. Servern skickade ett oväntat svar.`)
+  }
+
+  return data
 }
 
 export const useStopApi = () => ({
@@ -27,7 +40,8 @@ export const useStopApi = () => ({
     return requestJson(
       `/api/stops/search?query=${encodeURIComponent(query)}`,
       signal ? { signal } : {},
-      'Hållplatssökningen misslyckades'
+      'Hållplatssökningen misslyckades',
+      isStopSearchResponse
     )
   },
 
@@ -35,11 +49,12 @@ export const useStopApi = () => ({
     return requestJson(
       '/api/stops/config',
       signal ? { signal } : {},
-      'Kunde inte läsa konfigurationen'
+      'Kunde inte läsa konfigurationen',
+      isStopConfiguration
     )
   },
 
-  saveStopConfiguration(stop: Stop): Promise<StopConfiguration> {
+  saveStopConfiguration(stop: Stop, signal?: AbortSignal): Promise<StopConfiguration> {
     return requestJson(
       '/api/stops/config',
       {
@@ -50,16 +65,36 @@ export const useStopApi = () => ({
           stopName: stop.name,
           stops: stop.stops,
         }),
+        signal,
       },
-      'Kunde inte spara hållplatsen'
+      'Kunde inte spara hållplatsen',
+      (data): data is StopConfiguration => isStopConfiguration(data) && data.areaId === stop.id
     )
   },
 
-  getTraffic(signal?: AbortSignal): Promise<TrafficApiResponse> {
+  saveStopDestination(areaId: string, destination: string, signal?: AbortSignal): Promise<StopConfiguration> {
     return requestJson(
-      '/api/traffic',
+      '/api/stops/config/destination',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ areaId, destination }),
+        signal,
+      },
+      'Kunde inte spara destinationen',
+      (data): data is StopConfiguration =>
+        isStopConfiguration(data) &&
+        data.areaId === areaId &&
+        data.destination?.toLowerCase() === destination.toLowerCase()
+    )
+  },
+
+  getTraffic(areaId: string, signal?: AbortSignal): Promise<TrafficApiResponse> {
+    return requestJson(
+      `/api/traffic?areaId=${encodeURIComponent(areaId)}&all=true`,
       signal ? { signal } : {},
-      'Kunde inte hämta trafikdata'
+      'Kunde inte hämta trafikdata',
+      isTrafficApiResponse
     )
   },
 })

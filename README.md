@@ -41,8 +41,10 @@ spider-api/
 
 ### Backend (Node.js + Express + TypeScript)
 
-- **GET /api/traffic/:direction?**: Traffic data with optional direction parameter
+- **GET /api/traffic**: Next departure for the configured stop and destination
+- **GET /api/traffic?all=true**: Traffic data for all directions in the admin view
 - **GET/PUT /api/stops/config**: Read and update the configured stop
+- **PUT /api/stops/config/destination**: Save the destination used by the external client
 - **GET /api/stops/search**: Search for stops
 - **GET /health**: Health check endpoint
 - Real-time traffic data from Trafiklab API
@@ -78,6 +80,8 @@ npm start
 The backend will run on `http://localhost:3001` by default. Set `PORT` to use a different port.
 
 #### 2. Frontend Setup
+
+Use Node.js 24 LTS, or another Node version admitted by `frontend/package.json`.
 
 ```bash
 cd frontend
@@ -205,19 +209,25 @@ in the frontend router.
 
 ### Traffic Data
 
-- `GET /api/traffic` - Get all current traffic data
-- `GET /api/traffic/:direction` - Get traffic data filtered by direction
-  - Example: `GET /api/traffic/Stockholm` returns only departures heading to Stockholm
+- `GET /api/traffic` returns `{ departure: ... }` for the next upcoming departure toward the saved destination. It returns HTTP 409 until a destination has been saved and HTTP 404 if no upcoming departure matches.
+- `GET /api/traffic?all=true` returns all directions. Add `areaId` to preview a different stop. Requests with only `areaId` also retain the all-directions response.
+- `GET /api/traffic/:direction` still accepts an explicit direction and returns a single matching departure. For example, use `GET /api/traffic/Stockholm`.
 
 ### Stop administration
 
 - `GET /api/stops/search?query=<text>` - Search stops using Trafiklab Stop Lookup
-- `GET /api/stops/config` - Read the configured stop
+- `GET /api/stops/config` - Read the configured stop and its saved destination, if present
 - `PUT /api/stops/config` - Save the stop used for traffic data
   - Request body: `{ "areaId": "740065516", "stopName": "Example stop" }`
+- `PUT /api/stops/config/destination` - Save a direction from the active stop's current departures
+  - Request body: `{ "areaId": "740065516", "destination": "Stockholm" }`
 
-The selected stop is stored in `backend/src/config.json`. The backend reads this
-file for each traffic request; if it does not exist, it uses area ID `740065516`.
+Choose a stop in admin, then use the destination selector to save a direction for
+the external client. Each stop keeps its own destination and restores it when
+you select that stop again. A stop with no saved destination requires a selection.
+
+The selected stop and destination are stored in `backend/src/config.json`. If the
+file does not exist, the admin view uses area ID `740065516`.
 Ensure this file location is writable by the backend process and persisted when
 running in a container.
 
@@ -297,10 +307,13 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 
 ## Testing
 
+Run `cd frontend && npm test` for the component regression tests. The tests use
+mocked API responses and run without a backend or Trafiklab API key.
+
 1. Start backend and frontend servers (locally or with containers)
 2. Navigate to `http://localhost:5173`
-3. Search for a stop and save it to the configuration; the admin view then loads its traffic data
-4. Test direction filtering: `GET /api/traffic/Stockholm`
+3. Search for a stop and save it. The admin view should show all available directions.
+4. Save a destination and check that `GET /api/traffic` returns an upcoming departure for it.
 
 ### Testing with cURL
 
@@ -308,8 +321,11 @@ The application is integrated with **Trafiklab's Real-time API** for live Swedis
 # Test health endpoint
 curl http://localhost:3001/health
 
-# Test traffic endpoint
+# Test the saved destination after setting it in admin
 curl http://localhost:3001/api/traffic
+
+# Test the all-directions view
+curl 'http://localhost:3001/api/traffic?all=true'
 
 # Test traffic endpoint with direction filter
 curl http://localhost:3001/api/traffic/Stockholm

@@ -1,5 +1,6 @@
 export interface TrafficDeparture {
   realtime: string;
+  canceled?: boolean;
   nextDepartureIn: string;
   route: {
     direction: string;
@@ -57,4 +58,5 @@ export interface StopConfiguration {
   areaId: string;
   stopName?: string;
   stops?: StopLocation[];
+  destination?: string;
 }

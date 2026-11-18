@@ -21,9 +21,16 @@
         </button>
       </form>
       
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
-      </div>
+      <DismissibleMessage
+        v-if="message"
+        :class="['message', messageType]"
+        :text="message"
+        :role="messageType === 'error' ? 'alert' : 'status'"
+        :duration-ms="5000"
+        :reset-key="messageId"
+        dismiss-label="Dismiss message"
+        @dismiss="message = ''"
+      />
       
       <div class="demo-tokens">
         <h4>Demo Tokens (for testing):</h4>
@@ -41,6 +48,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE_URL } from '../api'
+import DismissibleMessage from '../components/DismissibleMessage.vue'
 import type { ApiErrorResponse, MessageType } from '../types'
 
 const router = useRouter()
@@ -51,7 +59,7 @@ const token = ref('')
 const isLoading = ref(false)
 const message = ref('')
 const messageType = ref<MessageType>('error')
-let messageTimer: ReturnType<typeof setTimeout> | undefined
+const messageId = ref(0)
 let redirectTimer: ReturnType<typeof setTimeout> | undefined
 
 const getApiError = (data: unknown): string | undefined => {
@@ -101,16 +109,12 @@ const authenticate = async (): Promise<void> => {
 }
 
 const showMessage = (text: string, type: MessageType): void => {
-  if (messageTimer) clearTimeout(messageTimer)
   message.value = text
   messageType.value = type
-  messageTimer = setTimeout(() => {
-    message.value = ''
-  }, 5000)
+  messageId.value += 1
 }
 
 onBeforeUnmount(() => {
-  if (messageTimer) clearTimeout(messageTimer)
   if (redirectTimer) clearTimeout(redirectTimer)
 })
 </script>

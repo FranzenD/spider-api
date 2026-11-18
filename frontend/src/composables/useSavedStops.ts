@@ -1,30 +1,10 @@
-import { onBeforeUnmount, ref } from 'vue'
-import type { Stop, StopConfiguration, StopLocation } from '../types'
+import { ref } from 'vue'
+import { isStop } from '../validation'
+import type { Stop, StopConfiguration, TimedMessage } from '../types'
 
 const FAVORITES_STORAGE_KEY = 'spider-api.favorite-stops'
 const RECENT_STOPS_STORAGE_KEY = 'spider-api.recent-stops'
 const MAX_SAVED_STOPS = 5
-
-const isStopLocation = (value: unknown): value is StopLocation => {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('id' in value) || typeof value.id !== 'string') return false
-  if (!('name' in value) || typeof value.name !== 'string') return false
-  if (!('lat' in value) || typeof value.lat !== 'number' || !Number.isFinite(value.lat)) {
-    return false
-  }
-  return 'lon' in value && typeof value.lon === 'number' && Number.isFinite(value.lon)
-}
-
-const isStop = (value: unknown): value is Stop =>
-  typeof value === 'object' &&
-  value !== null &&
-  'id' in value &&
-  typeof value.id === 'string' &&
-  'name' in value &&
-  typeof value.name === 'string' &&
-  'stops' in value &&
-  Array.isArray(value.stops) &&
-  value.stops.every(isStopLocation)
 
 const loadStops = (key: string): Stop[] => {
   const storedValue = localStorage.getItem(key)
@@ -40,8 +20,8 @@ const loadStops = (key: string): Stop[] => {
 export const useSavedStops = (onStorageError: (message: string) => void) => {
   const favorites = ref<Stop[]>([])
   const recentStops = ref<Stop[]>([])
-  const favoriteMessage = ref('')
-  let favoriteMessageTimer: ReturnType<typeof setTimeout> | undefined
+  const favoriteMessage = ref<TimedMessage | null>(null)
+  let favoriteMessageId = 0
 
   const persistStops = (key: string, stops: Stop[]): void => {
     try {
@@ -53,12 +33,21 @@ export const useSavedStops = (onStorageError: (message: string) => void) => {
   }
 
   const initialize = (): void => {
-    try {
-      favorites.value = loadStops(FAVORITES_STORAGE_KEY)
-      recentStops.value = loadStops(RECENT_STOPS_STORAGE_KEY)
-    } catch (error) {
-      console.error('Saved stop lists could not be loaded:', error)
-      onStorageError('Kunde inte läsa sparade favoriter eller sökhistorik.')
+    const lists = [
+      { key: FAVORITES_STORAGE_KEY, target: favorites, label: 'sparade favoriter' },
+      { key: RECENT_STOPS_STORAGE_KEY, target: recentStops, label: 'sökhistoriken' },
+    ]
+    const failedLists: string[] = []
+    for (const { key, target, label } of lists) {
+      try {
+        target.value = loadStops(key)
+      } catch (error) {
+        console.error('Saved stop list could not be loaded:', error)
+        failedLists.push(label)
+      }
+    }
+    if (failedLists.length) {
+      onStorageError(`Kunde inte läsa ${failedLists.join(' eller ')}.`)
     }
   }
 
@@ -85,12 +74,12 @@ export const useSavedStops = (onStorageError: (message: string) => void) => {
     persistStops(FAVORITES_STORAGE_KEY, favorites.value)
   }
 
-  const showFavoriteMessage = (message: string): void => {
-    if (favoriteMessageTimer) clearTimeout(favoriteMessageTimer)
-    favoriteMessage.value = message
-    favoriteMessageTimer = setTimeout(() => {
-      favoriteMessage.value = ''
-    }, 5000)
+  const showFavoriteMessage = (text: string): void => {
+    favoriteMessage.value = { id: ++favoriteMessageId, text, durationMs: 5000 }
+  }
+
+  const dismissFavoriteMessage = (): void => {
+    favoriteMessage.value = null
   }
 
   const toggleFavorite = (configuredStop: StopConfiguration): void => {
@@ -119,14 +108,11 @@ export const useSavedStops = (onStorageError: (message: string) => void) => {
     if (source === 'search') rememberStop(stop)
   }
 
-  onBeforeUnmount(() => {
-    if (favoriteMessageTimer) clearTimeout(favoriteMessageTimer)
-  })
-
   return {
     favorites,
     recentStops,
     favoriteMessage,
+    dismissFavoriteMessage,
     initialize,
     removeFavorite,
     clearHistory,

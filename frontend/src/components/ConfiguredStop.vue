@@ -3,6 +3,10 @@
     <div>
       <span class="configured-label">Aktiv hållplats</span>
       <strong>{{ stop.stopName || 'Hållplats' }}</strong>
+      <div v-if="stop.destination" class="configured-destination">
+        <span class="configured-label">Vald destination</span>
+        <strong>{{ stop.destination }}</strong>
+      </div>
     </div>
     <div class="configured-id-info">
       <code>{{ stop.areaId }}</code>
@@ -55,6 +59,12 @@ defineEmits<{
 .configured-stop > div {
   display: grid;
   gap: 0.2rem;
+}
+
+.configured-destination {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.5rem;
 }
 
 .configured-coordinates {

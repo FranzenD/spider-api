@@ -11,7 +11,12 @@
       @input="$emit('update:query', ($event.target as HTMLInputElement).value)"
     />
 
-    <p v-if="isSearching" class="search-hint" role="status">Söker hållplatser...</p>
+    <DismissibleMessage
+      v-if="isSearching"
+      class="search-hint"
+      :reset-key="query"
+      text="Söker hållplatser..."
+    />
     <ul v-else-if="results.length" class="search-results">
       <li v-for="stop in results" :key="stop.id" class="search-item">
         <div>
@@ -36,28 +41,25 @@
         <button
           type="button"
           class="save-stop-btn"
-          :disabled="isSaving"
+          :disabled="selectionDisabled || isSaving"
           @click="$emit('select', stop)"
         >
           {{ isSaving ? 'Sparar...' : 'Använd hållplats' }}
         </button>
       </li>
     </ul>
-    <p v-if="error" class="search-hint search-error" role="alert">
-      {{ error }}
-    </p>
-    <p
-      v-else-if="hasSearched && query.trim().length >= 2 && !isSearching"
+    <DismissibleMessage v-if="error" class="search-hint search-error" :text="error" role="alert" />
+    <DismissibleMessage
+      v-else-if="hasSearched && !results.length && !isSearching"
       class="search-hint"
-      role="status"
-    >
-      Inga hållplatser hittades.
-    </p>
+      text="Inga hållplatser hittades."
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Stop } from '../types'
+import DismissibleMessage from './DismissibleMessage.vue'
 
 defineProps<{
   query: string
@@ -65,6 +67,7 @@ defineProps<{
   hasSearched: boolean
   isSearching: boolean
   isSaving: boolean
+  selectionDisabled?: boolean
   error: string
 }>()
 
@@ -166,6 +169,8 @@ defineEmits<{
 }
 
 .search-hint {
+  margin-top: 1.25rem;
+  margin-bottom: 1em;
   padding: 1rem;
   color: #666;
   text-align: center;

@@ -1,12 +1,9 @@
 export interface TrafficDeparture {
   realtime: string
-  nextDepartureIn: string
   route: {
     direction: string
     designation: string
   }
-  destination?: string
-  expected?: string
 }
 
 export interface TrafficApiResponse {
@@ -40,6 +37,7 @@ export interface StopConfiguration {
   areaId: string
   stopName?: string
   stops?: StopLocation[]
+  destination?: string
 }
 
 export interface ApiErrorResponse {
@@ -48,3 +46,9 @@ export interface ApiErrorResponse {
 }
 
 export type MessageType = 'success' | 'error'
+
+export interface TimedMessage {
+  id: number
+  text: string
+  durationMs: number
+}
