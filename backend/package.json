@@ -5,7 +5,7 @@
   "description": "Backend API for Spider Traffic Application",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node dist/server.js",
+    "start": "pm2 start dist/server.js --name 'SPIDER-API'",
     "dev": "NODE_ENV=development nodemon --ignore src/config.json --exec tsx src/server.ts",
     "test": "node --import tsx --test test/*.test.mjs",
     "build": "tsc",
