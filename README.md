@@ -88,17 +88,35 @@ backend at `http://localhost:3001` by default.
 | `API_KEY` | `backend/.env` | Trafiklab API key for stop search and live departures |
 | `PORT` | `backend/.env` | Backend port, defaults to `3001` |
 | `NODE_ENV` | Backend environment | `npm run dev` sets `development` and enables readable console logs |
+| `FRONTEND_ORIGIN` | `backend/.env` | Comma-separated list of additional frontend origins for CORS |
 | `VITE_API_BASE_URL` | `frontend/.env.local` | Override the backend URL used by the browser |
 | `JWT_SECRET` | `backend/.env` | Used when the authentication module is enabled |
-
-Browser requests are allowed from `http://localhost:5173` and
-`http://localhost:5174`. Update the CORS allowlist in `backend/src/server.ts`
-if the frontend is served from a different origin.
 
 The backend stores the active stop and destinations by stop ID in
 `backend/src/config.json`. Before the first save, the active area ID defaults
 to `740065516`. Keep the configuration file and environment files local. The
 backend process needs write access to `backend/src/` to save changes.
+
+### Raspberry Pi frontend
+
+Browser requests are allowed from `http://localhost:5173` and
+`http://localhost:5174` by default. To also allow Vite dev on port `5173` and
+the PM2 frontend on port `8080`, add both origins to `backend/.env` on the
+machine running the API.
+
+```dotenv
+FRONTEND_ORIGIN=http://192.168.50.34:5173,http://192.168.50.34:8080
+```
+
+Use the scheme, host, and port from the browser URL, with no trailing slash.
+Restart the backend to apply the setting. If the backend runs under PM2, rebuild
+it after updating the code and run `pm2 restart SPIDER-API`.
+
+Set `VITE_API_BASE_URL` in `frontend/.env.local` to the backend address that the
+browser can reach. If the API also runs on the Pi on its default port, use
+`VITE_API_BASE_URL=http://192.168.50.34:3001`. Restart Vite to apply the dev
+setting. For production, run `npm run build` from `frontend/` and serve `dist/`
+with `npm run start:pm2`.
 
 ## API endpoints
 

@@ -50,11 +50,11 @@ const PORT: number = parseInt(process.env.PORT || '3001', 10);
 app.use(express.json());
 
 // CORS configuration
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
-const frontendOrigin = process.env.FRONTEND_ORIGIN?.trim();
-if (frontendOrigin) {
-  allowedOrigins.push(frontendOrigin);
-}
+const frontendOrigins = (process.env.FRONTEND_ORIGIN ?? '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', ...frontendOrigins];
 
 app.use(
   cors({
