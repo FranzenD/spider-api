@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
+    "start:pm2": "pm2 serve dist 8080 --spa --name spider-frontend",
     "type-check": "vue-tsc --noEmit",
     "test": "vitest run"
   },
