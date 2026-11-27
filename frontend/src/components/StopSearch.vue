@@ -180,9 +180,9 @@ defineEmits<{
   color: #721c24;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .search-item {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
   }
 }

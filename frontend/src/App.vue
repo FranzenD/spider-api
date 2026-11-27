@@ -65,4 +65,20 @@
   align-items: center;
   min-height: calc(100vh - 80px);
 }
+
+@media (max-width: 768px) {
+  .navbar {
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .navbar h1 {
+    font-size: 1.25rem;
+  }
+
+  .main-content {
+    align-items: flex-start;
+    padding: 0.75rem;
+  }
+}
 </style>

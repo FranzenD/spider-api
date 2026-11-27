@@ -102,10 +102,14 @@ defineEmits<{
   font-size: 0.85rem;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .configured-stop {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     align-items: flex-start;
+  }
+
+  .favorite-toggle-btn {
+    justify-self: stretch;
   }
 
   .configured-id-info {
