@@ -406,15 +406,15 @@ const showDepartureInMinutesFromNow = (timestampMs: number): string => {
   padding: 2rem 1rem;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .traffic-title,
   .data-header {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
   }
 
   .traffic-grid {
-    grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

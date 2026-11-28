@@ -292,6 +292,7 @@ onBeforeUnmount(() => {
   min-height: 60vh;
   padding: 1rem;
   min-width: 60%;
+  overflow-wrap: anywhere;
 }
 
 .traffic-card {
@@ -411,13 +412,30 @@ onBeforeUnmount(() => {
   border: 1px solid #f5c6cb;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  .traffic-container {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+  }
+
   .traffic-card {
-    padding: 1.25rem;
+    padding: 0.75rem;
   }
 
   .admin-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .admin-panel {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+  }
+
+  .destination-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
